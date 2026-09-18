@@ -34,7 +34,8 @@
 	 * https://developers.cloudflare.com/workers/static-assets/binding/
 	 */
 	"assets": {
-		"directory": "./public/"
+		"directory": "./public/",
+		"not_found_handling": "single-page-application"
 	},
 	/**
 	 * Secrets Store (account-level secrets)

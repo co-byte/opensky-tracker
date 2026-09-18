@@ -117,9 +117,19 @@ async function fetchLatestFlightState(env: Env): Promise<DatabricksQueryResult> 
 	return runQuery(sql, accessToken, 'SELECT * FROM intro_to_data_engineering.gold.latest_flight_state');
 }
 
+type Handler = (req: Request, env: Env) => Promise<Response>;
+
+const routes: Record<string, Handler> = {
+	'GET /api/latest-flight-state': async (_req, env) => Response.json(await fetchLatestFlightState(env)),
+};
+
 export default {
 	async fetch(req, env): Promise<Response> {
-		const result = await fetchLatestFlightState(env);
-		return Response.json(result);
+		const handler = routes[`${req.method} ${new URL(req.url).pathname}`];
+		if (!handler) {
+			return Response.json({ error: 'Not found' }, { status: 404 });
+		}
+
+		return handler(req, env);
 	},
 } satisfies ExportedHandler<Env>;
