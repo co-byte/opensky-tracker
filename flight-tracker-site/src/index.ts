@@ -12,12 +12,12 @@
  */
 
 export interface Env {
-	// Secrets (set via `wrangler secret put`)
-	DATABRICKS_ACCOUNT_ID: string; // part of the OAuth token endpoint URL
-	DATABRICKS_DEPLOYMENT_NAME: string; // subdomain of the workspace URL: <deployment name>.cloud.databricks.com
-	DATABRICKS_WAREHOUSE_ID: string;
-	DATABRICKS_CLIENT_ID: string;
-	DATABRICKS_CLIENT_SECRET: string;
+	// Secrets Store bindings (see `secrets_store_secrets` in wrangler.jsonc)
+	DATABRICKS_ACCOUNT_ID: SecretsStoreSecret; // part of the OAuth token endpoint URL
+	DATABRICKS_DEPLOYMENT_NAME: SecretsStoreSecret; // subdomain of the workspace URL: <deployment name>.cloud.databricks.com
+	DATABRICKS_WAREHOUSE_ID: SecretsStoreSecret;
+	DATABRICKS_CLIENT_ID: SecretsStoreSecret;
+	DATABRICKS_CLIENT_SECRET: SecretsStoreSecret;
 }
 
 interface DatabricksAuthConfig {
@@ -45,10 +45,10 @@ interface DatabricksQueryResult {
 	};
 }
 
-function loadConfig(env: Env): {
+async function loadConfig(env: Env): Promise<{
 	auth: DatabricksAuthConfig;
 	sql: DatabricksSqlConfig;
-} {
+}> {
 	const required = (value: string | undefined, name: string): string => {
 		if (!value) {
 			throw new Error(`Missing required environment variable: ${name}`);
@@ -56,18 +56,18 @@ function loadConfig(env: Env): {
 		return value;
 	};
 
-	const accountId = required(env.DATABRICKS_ACCOUNT_ID, 'DATABRICKS_ACCOUNT_ID');
-	const deploymentName = required(env.DATABRICKS_DEPLOYMENT_NAME, 'DATABRICKS_DEPLOYMENT_NAME');
+	const accountId = required(await env.DATABRICKS_ACCOUNT_ID.get(), 'DATABRICKS_ACCOUNT_ID');
+	const deploymentName = required(await env.DATABRICKS_DEPLOYMENT_NAME.get(), 'DATABRICKS_DEPLOYMENT_NAME');
 
 	return {
 		auth: {
 			tokenEndpointUrl: `https://accounts.cloud.databricks.com/oidc/accounts/${accountId}/v1/token`,
-			clientId: required(env.DATABRICKS_CLIENT_ID, 'DATABRICKS_CLIENT_ID'),
-			clientSecret: required(env.DATABRICKS_CLIENT_SECRET, 'DATABRICKS_CLIENT_SECRET'),
+			clientId: required(await env.DATABRICKS_CLIENT_ID.get(), 'DATABRICKS_CLIENT_ID'),
+			clientSecret: required(await env.DATABRICKS_CLIENT_SECRET.get(), 'DATABRICKS_CLIENT_SECRET'),
 		},
 		sql: {
 			serverHostname: `${deploymentName}.cloud.databricks.com`,
-			warehouseId: required(env.DATABRICKS_WAREHOUSE_ID, 'DATABRICKS_WAREHOUSE_ID'),
+			warehouseId: required(await env.DATABRICKS_WAREHOUSE_ID.get(), 'DATABRICKS_WAREHOUSE_ID'),
 		},
 	};
 }
@@ -112,7 +112,7 @@ async function runQuery(sql: DatabricksSqlConfig, accessToken: string, sqlText: 
 }
 
 async function fetchLatestFlightState(env: Env): Promise<DatabricksQueryResult> {
-	const { auth, sql } = loadConfig(env);
+	const { auth, sql } = await loadConfig(env);
 	const accessToken = await getAccessToken(auth);
 	return runQuery(sql, accessToken, 'SELECT * FROM intro_to_data_engineering.gold.latest_flight_state');
 }
