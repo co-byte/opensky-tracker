@@ -35,7 +35,41 @@
 	 */
 	"assets": {
 		"directory": "./public/"
-	}
+	},
+	/**
+	 * Secrets Store (account-level secrets)
+	 * https://developers.cloudflare.com/secrets-store/integrations/workers/
+	 *
+	 * `wrangler dev` cannot read these. Create a local copy of each secret with:
+	 * npx wrangler secrets-store secret create <store_id> --name <secret_name> --scopes workers
+	 */
+	"secrets_store_secrets": [
+		{
+			"binding": "DATABRICKS_ACCOUNT_ID",
+			"store_id": "646b3fab3a7c4c02bd0527f04dff5274",
+			"secret_name": "DATABRICKS_ACCOUNT_ID"
+		},
+		{
+			"binding": "DATABRICKS_DEPLOYMENT_NAME",
+			"store_id": "646b3fab3a7c4c02bd0527f04dff5274",
+			"secret_name": "DATABRICKS_DEPLOYMENT_NAME"
+		},
+		{
+			"binding": "DATABRICKS_WAREHOUSE_ID",
+			"store_id": "646b3fab3a7c4c02bd0527f04dff5274",
+			"secret_name": "DATABRICKS_WAREHOUSE_ID"
+		},
+		{
+			"binding": "DATABRICKS_CLIENT_ID",
+			"store_id": "646b3fab3a7c4c02bd0527f04dff5274",
+			"secret_name": "DATABRICKS_CLIENT_ID"
+		},
+		{
+			"binding": "DATABRICKS_CLIENT_SECRET",
+			"store_id": "646b3fab3a7c4c02bd0527f04dff5274",
+			"secret_name": "DATABRICKS_CLIENT_SECRET"
+		}
+	]
 	/**
 	 * Service Bindings (communicate between multiple Workers)
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
