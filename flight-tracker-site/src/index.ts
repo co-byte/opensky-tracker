@@ -1,12 +1,8 @@
 /**
  * Welcome to Cloudflare Workers!
  *
- * This is a template for a Scheduled Worker: a Worker that can run on a
- * configurable interval:
- * https://developers.cloudflare.com/workers/platform/triggers/cron-triggers/
  *
  * - Run `npm run dev` to start a development server
- * - Run `curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"` to see the Worker in action
  * - Run `npm run deploy` to publish the Worker
  *
  * Bind resources to the Worker in `wrangler.jsonc`. After adding bindings, a type definition for the
@@ -110,25 +106,15 @@ async function runQuery(sql: DatabricksSqlConfig, accessToken: string, sqlText: 
 	return (await response.json()) as DatabricksQueryResult;
 }
 
-async function pollFlightData(env: Env): Promise<void> {
+async function fetchLatestFlightState(env: Env): Promise<DatabricksQueryResult> {
 	const { auth, sql } = loadConfig(env);
 	const accessToken = await getAccessToken(auth);
-	const result = await runQuery(sql, accessToken, 'SELECT * FROM intro_to_data_engineering.gold.latest_flight_state');
-
-	console.log(JSON.stringify(result.result));
+	return runQuery(sql, accessToken, 'SELECT * FROM intro_to_data_engineering.gold.latest_flight_state');
 }
 
 export default {
-	async fetch(req) {
-		const url = new URL(req.url);
-		url.pathname = '/__scheduled';
-		url.searchParams.append('cron', '* * * * *');
-		return new Response(`To test the scheduled handler, ensure you have used the "--test-scheduled" then try running "curl ${url.href}".`);
-	},
-
-	// The scheduled handler is invoked at the interval set by the `triggers`
-	// configuration in wrangler.jsonc.
-	async scheduled(event, env, ctx): Promise<void> {
-		ctx.waitUntil(pollFlightData(env).catch((err) => console.error(`trigger fired at ${event.cron} failed: ${err}`)));
+	async fetch(req, env): Promise<Response> {
+		const result = await fetchLatestFlightState(env);
+		return Response.json(result.result ?? null);
 	},
 } satisfies ExportedHandler<Env>;
