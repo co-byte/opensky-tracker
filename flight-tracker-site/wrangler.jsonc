@@ -4,7 +4,7 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "latest-flight-state-poller",
+	"name": "flight-tracker-site",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-09-16",
 	"observability": {
