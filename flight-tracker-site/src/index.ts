@@ -34,6 +34,11 @@ interface DatabricksSqlConfig {
 interface DatabricksQueryResult {
 	statement_id: string;
 	status: { state: string };
+	manifest?: {
+		schema?: {
+			columns?: { name: string; type_name?: string }[];
+		};
+	};
 	result?: {
 		data_array?: unknown[][];
 		[key: string]: unknown;
@@ -115,6 +120,6 @@ async function fetchLatestFlightState(env: Env): Promise<DatabricksQueryResult> 
 export default {
 	async fetch(req, env): Promise<Response> {
 		const result = await fetchLatestFlightState(env);
-		return Response.json(result.result ?? null);
+		return Response.json(result);
 	},
 } satisfies ExportedHandler<Env>;
