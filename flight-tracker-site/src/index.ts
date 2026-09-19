@@ -18,6 +18,8 @@ export interface Env {
 	DATABRICKS_WAREHOUSE_ID: SecretsStoreSecret;
 	DATABRICKS_CLIENT_ID: SecretsStoreSecret;
 	DATABRICKS_CLIENT_SECRET: SecretsStoreSecret;
+	FLIGHT_CACHE: KVNamespace;
+	FLIGHT_CACHE_TTL_SECONDS: number;
 }
 
 interface DatabricksAuthConfig {
@@ -117,19 +119,32 @@ async function fetchLatestFlightState(env: Env): Promise<DatabricksQueryResult> 
 	return runQuery(sql, accessToken, 'SELECT * FROM intro_to_data_engineering.gold.latest_flight_state');
 }
 
-type Handler = (req: Request, env: Env) => Promise<Response>;
+async function getLatestFlightStateJson(env: Env, ctx: ExecutionContext): Promise<string> {
+	const key = 'latest-flight-state';
+	const cached = await env.FLIGHT_CACHE.get(key);
+	if (cached) {
+		return cached;
+	}
+
+	const json = JSON.stringify(await fetchLatestFlightState(env));
+	ctx.waitUntil(env.FLIGHT_CACHE.put(key, json, { expirationTtl: env.FLIGHT_CACHE_TTL_SECONDS }));
+	return json;
+}
+
+type Handler = (req: Request, env: Env, ctx: ExecutionContext) => Promise<Response>;
 
 const routes: Record<string, Handler> = {
-	'GET /api/latest-flight-state': async (_req, env) => Response.json(await fetchLatestFlightState(env)),
+	'GET /api/latest-flight-state': async (_req, env, ctx) =>
+		new Response(await getLatestFlightStateJson(env, ctx), { headers: { 'Content-Type': 'application/json' } }),
 };
 
 export default {
-	async fetch(req, env): Promise<Response> {
+	async fetch(req, env, ctx): Promise<Response> {
 		const handler = routes[`${req.method} ${new URL(req.url).pathname}`];
 		if (!handler) {
 			return Response.json({ error: 'Not found' }, { status: 404 });
 		}
 
-		return handler(req, env);
+		return handler(req, env, ctx);
 	},
 } satisfies ExportedHandler<Env>;
