@@ -84,7 +84,11 @@
 		import * as maplibregl from 'https://unpkg.com/maplibre-gl@^6.10.0/dist/maplibre-gl.mjs';
 
 		async function fetchAircraftPositions() {
-			const data = await (await fetch('/api/latest-flight-state')).json();
+			const response = await fetch('/api/latest-flight-state');
+			if (!response.ok) {
+				throw new Error(`Latest flight state request failed: ${response.status}`);
+			}
+			const data = await response.json();
 			const columns = (data.manifest?.schema?.columns ?? []).map(({ name }) => name);
 			// Real altitudes are tiny compared to the globe's radius, so they are exaggerated to be visible
 			const altitudeScale = 2;
@@ -144,6 +148,9 @@
 			['highway_name_other', 'highway_name_motorway', 'road_oneway', 'road_oneway_opposite'].forEach((id) =>
 				map.setLayoutProperty(id, 'visibility', 'none'),
 			);
+
+			// The layer references a pattern that is missing from the style's sprite, so it never draws and MapLibre logs a warning on every load
+			map.setLayoutProperty('landcover_wood', 'visibility', 'none');
 
 			// Lifts the stock dark palette a notch
 			map.setPaintProperty('background', 'background-color', '#181818');
