@@ -95,21 +95,17 @@
 		}
 
 		function addAircraftLayer(map, positions) {
-			const sphere = new luma.SphereGeometry();
-			const aircraftLayer = () =>
-				new deck.SimpleMeshLayer({
-					id: 'aircraft',
-					data: positions,
-					mesh: sphere,
-					getPosition: (position) => position,
-					getColor: [237, 237, 237],
-					sizeScale: (78272) / 2 ** map.getZoom(),
-				});
+			const aircraftLayer = new deck.ScatterplotLayer({
+				id: 'aircraft',
+				data: positions,
+				getPosition: (position) => position,
+				getFillColor: [237, 237, 237],
+				getRadius: 1,
+				radiusUnits: 'pixels',
+			});
 
 			// Interleaved so the dots are drawn on the globe, in the same 3D scene as the terrain
-			const overlay = new deck.MapLibreOverlay({ interleaved: true, layers: [aircraftLayer()] });
-			map.addControl(overlay);
-			map.on('zoom', () => overlay.setProps({ layers: [aircraftLayer()] }));
+			map.addControl(new deck.MapLibreOverlay({ interleaved: true, layers: [aircraftLayer] }));
 		}
 
 		function createResetViewControl(view) {
