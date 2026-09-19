@@ -153,6 +153,13 @@
 			map.setPaintProperty('background', 'background-color', '#181818');
 			map.setPaintProperty('water', 'fill-color', '#262628');
 
+			// Runways are near-black in the stock style, so they are invisible against the dark basemap
+			map.setPaintProperty('aeroway-runway', 'line-color', '#a8a8a8');
+			map.setPaintProperty('aeroway-area', 'fill-color', '#a8a8a8');
+			map.setPaintProperty('aeroway-runway-casing', 'line-color', '#4a4a4a');
+			// The style starts these at zoom 11, but the tiles carry aeroway data from zoom 10
+			['aeroway-runway', 'aeroway-runway-casing'].forEach((id) => map.setLayerZoomRange(id, 10, 24));
+
 			// These layers reference an icon that is missing from the style's sprite, so MapLibre logs a console warning for each; clearing it silences that
 			['place_town', 'place_city', 'place_city_large'].forEach((id) => map.setLayoutProperty(id, 'icon-image', ''));
 
