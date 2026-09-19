@@ -28,7 +28,9 @@
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
 	 */
-	// "vars": {  "MY_VARIABLE": "production_value" },
+	"vars": {
+		"FLIGHT_CACHE_TTL_SECONDS": 300
+	},
 	/**
 	 * Static Assets
 	 * https://developers.cloudflare.com/workers/static-assets/binding/
@@ -69,6 +71,16 @@
 			"binding": "DATABRICKS_CLIENT_SECRET",
 			"store_id": "646b3fab3a7c4c02bd0527f04dff5274",
 			"secret_name": "DATABRICKS_CLIENT_SECRET"
+		}
+	],
+	/**
+	 * KV (caches the latest flight state, so page loads do not each query the warehouse)
+	 * https://developers.cloudflare.com/kv/get-started/
+	 */
+	"kv_namespaces": [
+		{
+			"binding": "FLIGHT_CACHE",
+			"id": "1e82c18c98e4455392a6deb44f400014"
 		}
 	]
 	/**
