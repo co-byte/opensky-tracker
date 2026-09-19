@@ -1,45 +1,109 @@
 <!doctype html>
 <html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>flight-tracker-site</title>
-		<link rel="stylesheet" href="/styles.css" />
-	</head>
-	<body>
-		<h1>Latest flight state</h1>
 
-		<div class="table-wrap">
-			<table id="table"></table>
-		</div>
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Flight Tracker</title>
+	<link rel="icon"
+		href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23181818'/><circle cx='16' cy='16' r='12.5' fill='none' stroke='%23ededed' stroke-opacity='.3' stroke-width='1.2'/><path d='M16 4l2 8.5 9 6v2.5l-9-2.5-.6 6 3.1 2.2V29L16 27.6 11.5 29v-1.8l3.1-2.2-.6-6-9 2.5v-2.5l9-6z' fill='%23ededed' transform='translate(16 16) rotate(45) scale(.68) translate(-16 -16)'/></svg>" />
+	<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@^6.10.0/dist/maplibre-gl.css" />
+	<style>
+		/* Same colour as the basemap background, so nothing flashes white while tiles load */
+		:root {
+			color-scheme: dark;
+			background: #181818;
+		}
 
-		<script>
-			fetch('/api/latest-flight-state')
-				.then((res) => res.json())
-				.then((data) => {
-					const columns = data.manifest?.schema?.columns ?? [];
-					const rows = data.result?.data_array ?? [];
-					const table = document.getElementById('table');
+		body {
+			margin: 0;
+		}
 
-					if (!columns.length || !rows.length) {
-						table.replaceWith('No rows to display.');
-						return;
-					}
+		#map {
+			height: 100dvh;
+		}
 
-					const headerRow = table.insertRow();
-					for (const column of columns) {
-						const th = document.createElement('th');
-						th.textContent = column.name;
-						headerRow.appendChild(th);
-					}
+		/* The keyboard-focusable canvas would otherwise draw a white focus ring around the whole map */
+		.maplibregl-canvas {
+			outline: none;
+		}
 
-					for (const row of rows) {
-						const tr = table.insertRow();
-						for (const value of row) {
-							tr.insertCell().textContent = value;
-						}
+		/* The doubled selectors outrank MapLibre's own white attribution styles */
+		.maplibregl-ctrl.maplibregl-ctrl-attrib,
+		.maplibregl-ctrl-attrib.maplibregl-compact {
+			background: rgba(24, 24, 24, 0.7);
+			color: #8b8b8b;
+		}
+
+		.maplibregl-ctrl-attrib a {
+			color: inherit;
+		}
+
+		.maplibregl-ctrl-attrib-button {
+			filter: invert(1);
+		}
+	</style>
+</head>
+
+<body>
+	<main id="map"></main>
+
+	<script type="module">
+		import * as maplibregl from 'https://unpkg.com/maplibre-gl@^6.10.0/dist/maplibre-gl.mjs';
+
+		const map = new maplibregl.Map({
+			container: 'map',
+			style: 'https://tiles.openfreemap.org/styles/dark',
+			center: [0, 0],
+			zoom: 2,
+			maxPitch: 85,
+		});
+
+		map.on('style.load', () => {
+			map.setProjection({ type: 'globe' });
+
+			// Road labels compete with city names, which matter more when tracking flights
+			['highway_name_other', 'highway_name_motorway', 'road_oneway', 'road_oneway_opposite'].forEach((id) =>
+				map.setLayoutProperty(id, 'visibility', 'none'),
+			);
+
+			// Lifts the stock dark palette a notch
+			map.setPaintProperty('background', 'background-color', '#181818');
+			map.setPaintProperty('water', 'fill-color', '#262628');
+
+			// Anything smaller than a city only shows once zoomed in
+			const placeMinZoom = { place_state: 6, place_city: 5, place_town: 10, place_village: 12, place_other: 12, place_suburb: 12 };
+			map
+				.getStyle()
+				.layers.filter(({ id }) => id.startsWith('place_'))
+				.forEach(({ id, maxzoom }) => {
+					map.setPaintProperty(id, 'text-color', '#8a8a8a');
+					if (id in placeMinZoom) {
+						map.setLayerZoomRange(id, placeMinZoom[id], maxzoom);
 					}
 				});
-		</script>
-	</body>
+
+			map.addSource('terrain', {
+				type: 'raster-dem',
+				tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+				tileSize: 256,
+				maxzoom: 15,
+				encoding: 'terrarium',
+				attribution: 'Terrain: <a href="https://registry.opendata.aws/terrain-tiles/">Mapzen / AWS Terrain Tiles</a>',
+			});
+			// Inserted below the waterway, road and label layers so shading never covers them
+			map.addLayer(
+				{
+					id: 'hillshade',
+					type: 'hillshade',
+					source: 'terrain',
+					paint: { 'hillshade-exaggeration': 0.4, 'hillshade-highlight-color': '#3d4b5c' },
+				},
+				'waterway',
+			);
+			map.setTerrain({ source: 'terrain', exaggeration: 1.2 });
+		});
+	</script>
+</body>
+
 </html>
