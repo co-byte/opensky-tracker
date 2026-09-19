@@ -48,16 +48,48 @@
 <body>
 	<main id="map"></main>
 
+	<script src="https://unpkg.com/deck.gl@^9.4.0/dist.min.js"></script>
 	<script type="module">
 		import * as maplibregl from 'https://unpkg.com/maplibre-gl@^6.10.0/dist/maplibre-gl.mjs';
+
+		async function fetchAircraftPositions() {
+			const data = await (await fetch('/api/latest-flight-state')).json();
+			const columns = (data.manifest?.schema?.columns ?? []).map(({ name }) => name);
+			// Real altitudes are tiny compared to the globe's radius, so they are exaggerated to be visible
+			const altitudeScale = 2;
+			const [lon, lat, alt] = ['longitude', 'latitude', 'geo_altitude'].map((name) => columns.indexOf(name));
+			return (data.result?.data_array ?? [])
+				.filter((row) => row[lon] != null && row[lat] != null && row[alt] != null)
+				.map((row) => [Number(row[lon]), Number(row[lat]), Number(row[alt]) * altitudeScale]);
+		}
+
+		function addAircraftLayer(map, positions) {
+			const sphere = new luma.SphereGeometry();
+			const aircraftLayer = () =>
+				new deck.SimpleMeshLayer({
+					id: 'aircraft',
+					data: positions,
+					mesh: sphere,
+					getPosition: (position) => position,
+					getColor: [237, 237, 237],
+					sizeScale: (78272) / 2 ** map.getZoom(),
+				});
+
+			// Interleaved so the dots are drawn on the globe, in the same 3D scene as the terrain
+			const overlay = new deck.MapLibreOverlay({ interleaved: true, layers: [aircraftLayer()] });
+			map.addControl(overlay);
+			map.on('zoom', () => overlay.setProps({ layers: [aircraftLayer()] }));
+		}
 
 		const map = new maplibregl.Map({
 			container: 'map',
 			style: 'https://tiles.openfreemap.org/styles/dark',
-			center: [0, 0],
-			zoom: 2,
+			center: [4, 50],
+			zoom: 6,
 			maxPitch: 85,
 		});
+
+		fetchAircraftPositions().then((positions) => addAircraftLayer(map, positions));
 
 		map.on('style.load', () => {
 			map.setProjection({ type: 'globe' });
