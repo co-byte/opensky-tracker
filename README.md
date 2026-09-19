@@ -25,6 +25,7 @@ A web map that shows live aircraft positions from [OpenSky Network](https://open
 
 Changes that can be made in this repository alone.
 
+- [x] Show full runway shapes below zoom level 10
 - [ ] Reduce aircraft position loading time using Cloudflare's caching features
 - [ ] Move aircraft dots based on heading
 - [ ] Enable selecting aircraft and viewing details
@@ -33,7 +34,6 @@ Changes that can be made in this repository alone.
 
 Changes that also require work in [opensky-pipeline](https://github.com/co-byte/opensky-pipeline).
 
-- [ ] Show full runway shapes below zoom level 10
 - [ ] Smoother animations using position prediction, which requires better data quality and a rework of the current read-optimized Databricks tables
 - [ ] Add thumbnail and additional airframe information to aircraft detail view
 - [ ] Store tracked aircraft counts, optionally by (broad) category, to feed live README badges
