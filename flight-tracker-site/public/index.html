@@ -9,7 +9,7 @@
 		href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23181818'/><circle cx='16' cy='16' r='12.5' fill='none' stroke='%23ededed' stroke-opacity='.3' stroke-width='1.2'/><path d='M16 4l2 8.5 9 6v2.5l-9-2.5-.6 6 3.1 2.2V29L16 27.6 11.5 29v-1.8l3.1-2.2-.6-6-9 2.5v-2.5l9-6z' fill='%23ededed' transform='translate(16 16) rotate(45) scale(.68) translate(-16 -16)'/></svg>" />
 	<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@^6.10.0/dist/maplibre-gl.css" />
 	<style>
-		/* Same colour as the basemap background, so nothing flashes white while tiles load */
+		/* Same color as the basemap background, so nothing flashes white while tiles load */
 		:root {
 			color-scheme: dark;
 			background: #181818;
@@ -92,24 +92,85 @@
 			const columns = (data.manifest?.schema?.columns ?? []).map(({ name }) => name);
 			// Real altitudes are tiny compared to the globe's radius, so they are exaggerated to be visible
 			const altitudeScale = 2;
-			const [lon, lat, alt] = ['longitude', 'latitude', 'geo_altitude'].map((name) => columns.indexOf(name));
+			const [lon, lat, alt, category, heading, verticalRate, velocity] = [
+				'longitude',
+				'latitude',
+				'geo_altitude',
+				'category',
+				'true_track',
+				'vertical_rate',
+				'velocity',
+			].map((name) => columns.indexOf(name));
+			// Number(null) is 0, which would turn a missing velocity into a vertical climb
+			const optionalNumber = (value) => (value == null ? null : Number(value));
 			return (data.result?.data_array ?? [])
 				.filter((row) => row[lon] != null && row[lat] != null && row[alt] != null)
-				.map((row) => [Number(row[lon]), Number(row[lat]), Number(row[alt]) * altitudeScale]);
+				.map((row) => {
+					const rate = optionalNumber(row[verticalRate]);
+					const speed = optionalNumber(row[velocity]);
+					return {
+						position: [Number(row[lon]), Number(row[lat]), Number(row[alt]) * altitudeScale],
+						category: optionalNumber(row[category]),
+						heading: optionalNumber(row[heading]) ?? 0,
+						pitch: rate == null || speed == null ? 0 : (Math.atan2(rate, speed) * 180) / Math.PI,
+					};
+				});
 		}
 
-		function addAircraftLayer(map, positions) {
-			const aircraftLayer = new deck.ScatterplotLayer({
-				id: 'aircraft',
-				data: positions,
-				getPosition: (position) => position,
-				getFillColor: [237, 237, 237],
-				getRadius: 1,
-				radiusUnits: 'pixels',
-			});
+		const aircraftModels = [
+			{ file: 'sphere', categories: [0, 1, 11, 13, 15, 16, 17, 18, 19, 20], drawLengthMeters: 360 },
+			{ file: 'light', categories: [2], drawLengthMeters: 1050 },
+			{ file: 'small', categories: [3], drawLengthMeters: 1650 },
+			{ file: 'airliner', categories: [4, 5], drawLengthMeters: 2250 },
+			{ file: 'heavy', categories: [6], drawLengthMeters: 3000 },
+			{ file: 'fighter', categories: [7], drawLengthMeters: 1500 },
+			{ file: 'helicopter', categories: [8], drawLengthMeters: 1350 },
+			{ file: 'glider', categories: [9], drawLengthMeters: 1350 },
+			{ file: 'airship', categories: [10], drawLengthMeters: 2700 },
+			{ file: 'hang-glider', categories: [12], drawLengthMeters: 1200 },
+			{ file: 'drone', categories: [14], drawLengthMeters: 600 },
+		];
+		const missingCategoryModel = aircraftModels.find(({ file }) => file === 'sphere');
 
-			// Interleaved so the dots are drawn on the globe, in the same 3D scene as the terrain
-			map.addControl(new deck.MapLibreOverlay({ interleaved: true, layers: [aircraftLayer] }));
+		function findAircraftModel(category) {
+			if (category == null) {
+				return missingCategoryModel;
+			}
+			const model = aircraftModels.find(({ categories }) => categories.includes(category));
+			if (!model) {
+				throw new Error(`Unknown aircraft category: ${category}`);
+			}
+			return model;
+		}
+
+		// #8a8a86; deck.gl multiplies the tint in linear space, so the sRGB color is given as linear values
+		const aircraftColor = [65, 65, 61];
+
+		function createAircraftLayer(model, aircraft) {
+			return new deck.ScenegraphLayer({
+				id: `aircraft-${model.file}`,
+				data: aircraft.filter(({ category }) => findAircraftModel(category) === model),
+				scenegraph: `/models/${model.file}.glb`,
+				getPosition: ({ position }) => position,
+				// The 90° roll stands the Y-up glTF model upright in deck.gl's Z-up space; yaw runs counter-clockwise, headings clockwise
+				getOrientation: ({ heading, pitch }) => [pitch, -heading, 90],
+				sizeScale: model.drawLengthMeters,
+				sizeMinPixels: 2,
+				getColor: aircraftColor,
+				_lighting: 'pbr',
+				// Thin surfaces such as wings are single-sided and vanish from above otherwise
+				parameters: { cullMode: 'none' },
+			});
+		}
+
+		function addAircraftLayers(map, aircraft) {
+			// Interleaved so the aircraft are drawn on the globe, in the same 3D scene as the terrain
+			map.addControl(
+				new deck.MapLibreOverlay({
+					interleaved: true,
+					layers: aircraftModels.map((model) => createAircraftLayer(model, aircraft)),
+				}),
+			);
 		}
 
 		function createResetViewControl(view) {
@@ -139,7 +200,7 @@
 		map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 		map.addControl(createResetViewControl(initialView), 'top-right');
 
-		fetchAircraftPositions().then((positions) => addAircraftLayer(map, positions));
+		fetchAircraftPositions().then((aircraft) => addAircraftLayers(map, aircraft));
 
 		map.on('style.load', () => {
 			map.setProjection({ type: 'globe' });
