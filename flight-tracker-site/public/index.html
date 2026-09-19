@@ -156,6 +156,20 @@
 			// The style starts these at zoom 11, but the tiles carry aeroway data from zoom 10
 			['aeroway-runway', 'aeroway-runway-casing'].forEach((id) => map.setLayerZoomRange(id, 10, 24));
 
+			// The tiles have no runways below zoom 10; to keep major runways visible, they are drawn from OpenStreetMap data that Claude generated into runways.geojson
+			map.addSource('runways-low-zoom', { type: 'geojson', data: '/runways.geojson' });
+			map.addLayer(
+				{
+					id: 'runways-low-zoom',
+					type: 'line',
+					source: 'runways-low-zoom',
+					minzoom: 4,
+					maxzoom: 10,
+					paint: { 'line-color': '#a8a8a8', 'line-width': ['interpolate', ['linear'], ['zoom'], 4, 0.75, 10, 2] },
+				},
+				'aeroway-runway',
+			);
+
 			// These layers reference an icon that is missing from the style's sprite, so MapLibre logs a console warning for each; clearing it silences that
 			['place_town', 'place_city', 'place_city_large'].forEach((id) => map.setLayoutProperty(id, 'icon-image', ''));
 
