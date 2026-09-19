@@ -3,3 +3,11 @@ repos:
     rev: v8.30.0
     hooks:
       - id: gitleaks
+  - repo: local
+    hooks:
+      - id: wrangler-types
+        name: wrangler types are up to date
+        entry: bash -c 'cd flight-tracker-site && npx --no-install wrangler types --check'
+        language: system
+        files: ^flight-tracker-site/(wrangler\.jsonc|worker-configuration\.d\.ts)$
+        pass_filenames: false
