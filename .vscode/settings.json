@@ -6,7 +6,7 @@
 		"commands": [
 			{
 				"match": "wrangler\\.jsonc$",
-				"cmd": "npx wrangler types",
+				"cmd": "cd ${fileDirname} && npx wrangler types",
 				"isAsync": true
 			}
 		]
