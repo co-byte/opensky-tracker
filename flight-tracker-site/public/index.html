@@ -42,6 +42,37 @@
 		.maplibregl-ctrl-attrib-button {
 			filter: invert(1);
 		}
+
+		/* The buttons are transparent, so inverting them turns MapLibre's black icons and light dividers dark-mode friendly */
+		.maplibregl-ctrl.maplibregl-ctrl-group {
+			background: rgba(24, 24, 24, 0.7);
+			box-shadow: none;
+		}
+
+		.maplibregl-ctrl-group button {
+			filter: invert(1);
+		}
+
+		.maplibregl-ctrl-top-right {
+			top: 50%;
+			transform: translateY(-50%);
+		}
+
+		.maplibregl-ctrl-top-right .maplibregl-ctrl-group:has(+ .maplibregl-ctrl-group) {
+			border-bottom-left-radius: 0;
+			border-bottom-right-radius: 0;
+		}
+
+		.maplibregl-ctrl-top-right .maplibregl-ctrl-group+.maplibregl-ctrl-group {
+			margin-top: 0;
+			border-top: 1px solid #222;
+			border-top-left-radius: 0;
+			border-top-right-radius: 0;
+		}
+
+		.maplibregl-ctrl-reset-view .maplibregl-ctrl-icon {
+			background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 29 29'><circle cx='14.5' cy='14.5' r='5' fill='none' stroke='%23333' stroke-width='2'/><path d='M14.5 4v5M14.5 20v5M4 14.5h5M20 14.5h5' stroke='%23333' stroke-width='2'/></svg>");
+		}
 	</style>
 </head>
 
@@ -81,13 +112,32 @@
 			map.on('zoom', () => overlay.setProps({ layers: [aircraftLayer()] }));
 		}
 
+		function createResetViewControl(view) {
+			const container = document.createElement('div');
+			container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+			container.innerHTML =
+				'<button type="button" class="maplibregl-ctrl-reset-view" title="Reset view" aria-label="Reset view"><span class="maplibregl-ctrl-icon"></span></button>';
+
+			return {
+				onAdd: (map) => {
+					container.firstChild.onclick = () => map.easeTo({ ...view, bearing: 0, pitch: 0 });
+					return container;
+				},
+				onRemove: () => container.remove(),
+			};
+		}
+
+		const initialView = { center: [4, 50], zoom: 6 };
 		const map = new maplibregl.Map({
 			container: 'map',
 			style: 'https://tiles.openfreemap.org/styles/dark',
-			center: [4, 50],
-			zoom: 6,
+			...initialView,
 			maxPitch: 85,
 		});
+
+		map.addControl(new maplibregl.NavigationControl({ showZoom: false, visualizePitch: false }), 'top-right');
+		map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+		map.addControl(createResetViewControl(initialView), 'top-right');
 
 		fetchAircraftPositions().then((positions) => addAircraftLayer(map, positions));
 
@@ -103,6 +153,9 @@
 			map.setPaintProperty('background', 'background-color', '#181818');
 			map.setPaintProperty('water', 'fill-color', '#262628');
 
+			// These layers reference an icon that is missing from the style's sprite, so MapLibre logs a console warning for each; clearing it silences that
+			['place_town', 'place_city', 'place_city_large'].forEach((id) => map.setLayoutProperty(id, 'icon-image', ''));
+
 			// Anything smaller than a city only shows once zoomed in
 			const placeMinZoom = { place_state: 6, place_city: 5, place_town: 10, place_village: 12, place_other: 12, place_suburb: 12 };
 			map
@@ -115,20 +168,23 @@
 					}
 				});
 
-			map.addSource('terrain', {
+			const elevationSource = {
 				type: 'raster-dem',
 				tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
 				tileSize: 256,
 				maxzoom: 15,
 				encoding: 'terrarium',
 				attribution: 'Terrain: <a href="https://registry.opendata.aws/terrain-tiles/">Mapzen / AWS Terrain Tiles</a>',
-			});
+			};
+			// Use separate sources for rendering hillshade and terrain to increase quality; see https://maplibre.org/maplibre-gl-js/docs/examples/3d-terrain/
+			map.addSource('hillshade', elevationSource);
+			map.addSource('terrain', elevationSource);
 			// Inserted below the waterway, road and label layers so shading never covers them
 			map.addLayer(
 				{
 					id: 'hillshade',
 					type: 'hillshade',
-					source: 'terrain',
+					source: 'hillshade',
 					paint: { 'hillshade-exaggeration': 0.4, 'hillshade-highlight-color': '#3d4b5c' },
 				},
 				'waterway',
