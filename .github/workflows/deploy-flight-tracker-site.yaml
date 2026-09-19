@@ -1,6 +1,12 @@
 name: Deploy flight tracker website
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - flight-tracker-site/**
+      - .github/workflows/deploy-flight-tracker-site.yaml
 jobs:
   deploy:
     runs-on: ubuntu-latest
