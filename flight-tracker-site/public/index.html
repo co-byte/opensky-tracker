@@ -22,6 +22,46 @@
 		#viewer {
 			height: 100dvh;
 		}
+
+		/* Cesium's house icon is replaced by a plain ring, and its default blue hover by a neutral one */
+		.cesium-viewer-toolbar {
+			top: 12px;
+			right: 12px;
+		}
+
+		.cesium-viewer-toolbar .cesium-home-button {
+			border: 1px solid rgba(237, 237, 237, 0.2);
+			border-radius: 50%;
+			background: rgba(24, 24, 24, 0.8) url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='6' fill='none' stroke='%23ededed' stroke-width='1.2'/><circle cx='16' cy='16' r='1.5' fill='%23ededed'/></svg>") center / 100% no-repeat;
+			box-shadow: none;
+		}
+
+		.cesium-viewer-toolbar .cesium-home-button:hover {
+			border-color: rgba(237, 237, 237, 0.4);
+			background-color: #262628;
+		}
+
+		.cesium-home-button .cesium-svgPath-svg {
+			display: none;
+		}
+
+		/* The logo is only mandatory for Cesium ion content, which this page does not use; the credits stay behind the link */
+		.cesium-credit-logoContainer {
+			display: none !important;
+		}
+
+		.cesium-viewer-bottom {
+			padding: 0 12px 10px;
+		}
+
+		.cesium-viewer .cesium-credit-expand-link {
+			color: rgba(237, 237, 237, 0.4);
+			text-decoration: none;
+		}
+
+		.cesium-viewer .cesium-credit-expand-link:hover {
+			color: #ededed;
+		}
 	</style>
 </head>
 
