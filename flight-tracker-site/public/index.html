@@ -91,7 +91,7 @@
 			const data = await response.json();
 			const columns = (data.manifest?.schema?.columns ?? []).map(({ name }) => name);
 			// Real altitudes are tiny compared to the globe's radius, so they are exaggerated to be visible
-			const altitudeScale = 2;
+			const altitudeScale = 1.5;
 			const [lon, lat, alt, category, heading, verticalRate, velocity] = [
 				'longitude',
 				'latitude',
@@ -146,6 +146,24 @@
 		// #8a8a86; deck.gl multiplies the tint in linear space, so the sRGB color is given as linear values
 		const aircraftColor = [65, 65, 61];
 
+		// From this zoom MapLibre renders the flat map, whose camera honors the center elevation; the globe camera ignores it
+		const flatMapZoom = 12;
+		// Leaves room around the aircraft for its marker and details
+		const inspectLengthPixels = 150;
+		// Ground resolution at zoom 0 on the equator: the Earth's circumference over one 512 px tile
+		const metersPerPixelAtZoom0 = 78271.517;
+
+		function centerOnAircraft({ position: [lon, lat, altitude], category }) {
+			// Models differ in drawn length, so a fixed zoom would show them at very different sizes
+			const inspectZoom = Math.max(
+				flatMapZoom,
+				Math.log2((metersPerPixelAtZoom0 * Math.cos((lat * Math.PI) / 180) * inspectLengthPixels) / findAircraftModel(category).drawLengthMeters),
+			);
+			map.setCenterClampedToGround(false);
+			// easeTo ignores the elevation option and animates the center to the terrain instead, so only jumpTo can lift it
+			map.jumpTo({ center: [lon, lat], elevation: altitude, zoom: inspectZoom });
+		}
+
 		function createAircraftLayer(model, aircraft) {
 			return new deck.ScenegraphLayer({
 				id: `aircraft-${model.file}`,
@@ -157,6 +175,12 @@
 				sizeScale: model.drawLengthMeters,
 				sizeMinPixels: 2,
 				getColor: aircraftColor,
+				pickable: true,
+				onClick: ({ object }) => {
+					if (object) {
+						centerOnAircraft(object);
+					}
+				},
 				_lighting: 'pbr',
 				// Thin surfaces such as wings are single-sided and vanish from above otherwise
 				parameters: { cullMode: 'none' },
@@ -165,12 +189,21 @@
 
 		function addAircraftLayers(map, aircraft) {
 			// Interleaved so the aircraft are drawn on the globe, in the same 3D scene as the terrain
-			map.addControl(
-				new deck.MapLibreOverlay({
-					interleaved: true,
-					layers: aircraftModels.map((model) => createAircraftLayer(model, aircraft)),
-				}),
-			);
+			const overlay = new deck.MapLibreOverlay({
+				interleaved: true,
+				layers: aircraftModels.map((model) => createAircraftLayer(model, aircraft)),
+			});
+			map.addControl(overlay);
+
+			// deck.gl uses its globe view for the whole 'globe' projection, and that view misplaces a lifted center, hiding high aircraft
+			let flat = false;
+			map.on('zoom', () => {
+				if (flat === map.getZoom() >= flatMapZoom) {
+					return;
+				}
+				flat = !flat;
+				overlay.setProps({ views: flat ? new deck.MapView({ id: 'maplibre' }) : undefined });
+			});
 		}
 
 		function createResetViewControl(view) {
@@ -181,7 +214,10 @@
 
 			return {
 				onAdd: (map) => {
-					container.firstChild.onclick = () => map.easeTo({ ...view, bearing: 0, pitch: 0 });
+					container.firstChild.onclick = () => {
+						map.setCenterClampedToGround(true);
+						map.easeTo({ ...view, bearing: 0, pitch: 0 });
+					};
 					return container;
 				},
 				onRemove: () => container.remove(),
@@ -194,7 +230,12 @@
 			style: 'https://tiles.openfreemap.org/styles/dark',
 			...initialView,
 			maxPitch: 85,
+			// The orbital rotation pivot is the center projected at ground level, which is far off screen once the center is lifted to an aircraft
+			aroundCenter: false,
+			rotateSpeed: 0.5,
+			pitchSpeed: -0.4,
 		});
+
 
 		map.addControl(new maplibregl.NavigationControl({ showZoom: false, visualizePitch: false }), 'top-right');
 		map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
@@ -274,7 +315,7 @@
 				},
 				'waterway',
 			);
-			map.setTerrain({ source: 'terrain', exaggeration: 1.2 });
+			map.setTerrain({ source: 'terrain' });
 		});
 	</script>
 </body>
