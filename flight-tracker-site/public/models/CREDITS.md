@@ -24,5 +24,3 @@ Changes to individual files:
 
 - `glider.glb`: rotated upright
 - `heavy.glb`: levelled, as it was tilted in all three axes
-
-`sphere.glb` is generated for this project and has no third-party source.
