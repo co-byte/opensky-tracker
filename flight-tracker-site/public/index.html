@@ -160,20 +160,36 @@
 				});
 		}
 
-		// Categories are the labels the gold table delivers, not OpenSky's numeric codes; the models with none are waiting for their label to show up in the data
+		// Categories are the labels the gold table delivers, not OpenSky's numeric codes
 		// size is the model's width, height and length as fractions of drawLengthMeters, which is the longest of the three
 		const aircraftModels = [
-			{ file: 'sphere', categories: ['No information', 'No ADS-B emitter category information', 'Reserved'], drawLengthMeters: 720, size: [1, 1, 1] },
+			{
+				file: 'sphere',
+				categories: [
+					'No information',
+					'No ADS-B emitter category information',
+					'Parachutist / skydiver',
+					'Reserved',
+					'Space / trans-atmospheric vehicle',
+					'Surface vehicle - emergency vehicle',
+					'Surface vehicle - service vehicle',
+					'Point obstacle',
+					'Cluster obstacle',
+					'Line obstacle',
+				],
+				drawLengthMeters: 720,
+				size: [1, 1, 1],
+			},
 			{ file: 'light', categories: ['Light'], drawLengthMeters: 2100, size: [1, 0.421, 0.879] },
 			{ file: 'small', categories: ['Small'], drawLengthMeters: 3300, size: [1, 0.236, 0.992] },
 			{ file: 'airliner', categories: ['Large', 'High vortex large'], drawLengthMeters: 4500, size: [1, 0.276, 0.955] },
 			{ file: 'heavy', categories: ['Heavy'], drawLengthMeters: 6000, size: [0.882, 0.182, 1] },
 			{ file: 'fighter', categories: ['High performance'], drawLengthMeters: 3000, size: [0.811, 0.281, 1] },
 			{ file: 'helicopter', categories: ['Rotorcraft'], drawLengthMeters: 2700, size: [0.751, 0.341, 1] },
-			{ file: 'glider', categories: [], drawLengthMeters: 2700, size: [1, 0.132, 0.527] },
-			{ file: 'airship', categories: [], drawLengthMeters: 5400, size: [0.421, 0.426, 1] },
+			{ file: 'glider', categories: ['Glider / sailplane'], drawLengthMeters: 2700, size: [1, 0.132, 0.527] },
+			{ file: 'airship', categories: ['Lighter-than-air'], drawLengthMeters: 5400, size: [0.421, 0.426, 1] },
 			{ file: 'hang-glider', categories: ['Ultralight / hang-glider / paraglider'], drawLengthMeters: 2400, size: [1, 0.211, 0.629] },
-			{ file: 'drone', categories: [], drawLengthMeters: 500, size: [0.939, 0.512, 1] },
+			{ file: 'drone', categories: ['Unmanned aerial vehicle'], drawLengthMeters: 500, size: [0.939, 0.512, 1] },
 		];
 		const missingCategoryModel = aircraftModels.find(({ file }) => file === 'sphere');
 
