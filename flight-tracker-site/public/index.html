@@ -7,9 +7,9 @@
 	<title>Flight Tracker</title>
 	<link rel="icon"
 		href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23181818'/><circle cx='16' cy='16' r='12.5' fill='none' stroke='%23ededed' stroke-opacity='.3' stroke-width='1.2'/><path d='M16 4l2 8.5 9 6v2.5l-9-2.5-.6 6 3.1 2.2V29L16 27.6 11.5 29v-1.8l3.1-2.2-.6-6-9 2.5v-2.5l9-6z' fill='%23ededed' transform='translate(16 16) rotate(45) scale(.68) translate(-16 -16)'/></svg>" />
-	<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@^6.10.0/dist/maplibre-gl.css" />
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.145.0/Build/Cesium/Widgets/widgets.css" />
 	<style>
-		/* Same colour as the basemap background, so nothing flashes white while tiles load */
+		/* Same color as the globe's base color, so nothing flashes white while tiles load */
 		:root {
 			color-scheme: dark;
 			background: #181818;
@@ -19,146 +19,147 @@
 			margin: 0;
 		}
 
-		#map {
+		#viewer {
 			height: 100dvh;
 		}
 
-		/* The keyboard-focusable canvas would otherwise draw a white focus ring around the whole map */
-		.maplibregl-canvas {
-			outline: none;
+		/* Cesium's house icon is replaced by a plain ring, and its default blue hover by a neutral one */
+		.cesium-viewer-toolbar {
+			top: 12px;
+			right: 12px;
 		}
 
-		/* The doubled selectors outrank MapLibre's own white attribution styles */
-		.maplibregl-ctrl.maplibregl-ctrl-attrib,
-		.maplibregl-ctrl-attrib.maplibregl-compact {
-			background: rgba(24, 24, 24, 0.7);
-			color: #8b8b8b;
-		}
-
-		.maplibregl-ctrl-attrib a {
-			color: inherit;
-		}
-
-		.maplibregl-ctrl-attrib-button {
-			filter: invert(1);
-		}
-
-		/* The buttons are transparent, so inverting them turns MapLibre's black icons and light dividers dark-mode friendly */
-		.maplibregl-ctrl.maplibregl-ctrl-group {
-			background: rgba(24, 24, 24, 0.7);
+		.cesium-viewer-toolbar .cesium-home-button {
+			border: 1px solid rgba(237, 237, 237, 0.2);
+			border-radius: 50%;
+			background: rgba(24, 24, 24, 0.8) url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='6' fill='none' stroke='%23ededed' stroke-width='1.2'/><circle cx='16' cy='16' r='1.5' fill='%23ededed'/></svg>") center / 100% no-repeat;
 			box-shadow: none;
 		}
 
-		.maplibregl-ctrl-group button {
-			filter: invert(1);
+		.cesium-viewer-toolbar .cesium-home-button:hover {
+			border-color: rgba(237, 237, 237, 0.4);
+			background-color: #262628;
 		}
 
-		.maplibregl-ctrl-top-right {
-			top: 50%;
-			transform: translateY(-50%);
+		.cesium-home-button .cesium-svgPath-svg {
+			display: none;
 		}
 
-		.maplibregl-ctrl-top-right .maplibregl-ctrl-group:has(+ .maplibregl-ctrl-group) {
-			border-bottom-left-radius: 0;
-			border-bottom-right-radius: 0;
+		/* The logo is only mandatory for Cesium ion content, which this page does not use; the credits stay behind the link */
+		.cesium-credit-logoContainer {
+			display: none !important;
 		}
 
-		.maplibregl-ctrl-top-right .maplibregl-ctrl-group+.maplibregl-ctrl-group {
-			margin-top: 0;
-			border-top: 1px solid #222;
-			border-top-left-radius: 0;
-			border-top-right-radius: 0;
+		.cesium-viewer-bottom {
+			padding: 0 12px 10px;
 		}
 
-		.maplibregl-ctrl-reset-view .maplibregl-ctrl-icon {
-			background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 29 29'><circle cx='14.5' cy='14.5' r='5' fill='none' stroke='%23333' stroke-width='2'/><path d='M14.5 4v5M14.5 20v5M4 14.5h5M20 14.5h5' stroke='%23333' stroke-width='2'/></svg>");
+		.cesium-viewer .cesium-credit-expand-link {
+			color: rgba(237, 237, 237, 0.4);
+			text-decoration: none;
+		}
+
+		.cesium-viewer .cesium-credit-expand-link:hover {
+			color: #ededed;
 		}
 	</style>
 </head>
 
 <body>
-	<main id="map"></main>
+	<main id="viewer"></main>
 
-	<script src="https://unpkg.com/deck.gl@^9.4.0/dist.min.js"></script>
-	<script type="module">
-		import * as maplibregl from 'https://unpkg.com/maplibre-gl@^6.10.0/dist/maplibre-gl.mjs';
-
-		async function fetchAircraftPositions() {
-			const data = await (await fetch('/api/latest-flight-state')).json();
+	<script src="https://cdn.jsdelivr.net/npm/cesium@1.145.0/Build/Cesium/Cesium.js"></script>
+	<script>
+		async function fetchAircraft() {
+			const response = await fetch('/api/latest-flight-state');
+			if (!response.ok) {
+				throw new Error(`Latest flight state request failed: ${response.status}`);
+			}
+			const data = await response.json();
 			const columns = (data.manifest?.schema?.columns ?? []).map(({ name }) => name);
-			// Real altitudes are tiny compared to the globe's radius, so they are exaggerated to be visible
-			const altitudeScale = 2;
-			const [lon, lat, alt] = ['longitude', 'latitude', 'geo_altitude'].map((name) => columns.indexOf(name));
+			const [lon, lat, alt, category, heading, verticalRate, velocity] = [
+				'longitude',
+				'latitude',
+				'geo_altitude',
+				'category',
+				'true_track',
+				'vertical_rate',
+				'velocity',
+			].map((name) => columns.indexOf(name));
+			// Number(null) is 0, which would turn a missing velocity into a vertical climb
+			const optionalNumber = (value) => (value == null ? null : Number(value));
 			return (data.result?.data_array ?? [])
 				.filter((row) => row[lon] != null && row[lat] != null && row[alt] != null)
-				.map((row) => [Number(row[lon]), Number(row[lat]), Number(row[alt]) * altitudeScale]);
+				.map((row) => {
+					const rate = optionalNumber(row[verticalRate]);
+					const speed = optionalNumber(row[velocity]);
+					return {
+						position: Cesium.Cartesian3.fromDegrees(Number(row[lon]), Number(row[lat]), Number(row[alt])),
+						category: row[category],
+						heading: optionalNumber(row[heading]) ?? 0,
+						pitch: rate == null || speed == null ? 0 : Math.atan2(rate, speed),
+					};
+				});
 		}
 
-		function addAircraftLayer(map, positions) {
-			const aircraftLayer = new deck.ScatterplotLayer({
-				id: 'aircraft',
-				data: positions,
-				getPosition: (position) => position,
-				getFillColor: [237, 237, 237],
-				getRadius: 1,
-				radiusUnits: 'pixels',
-			});
+		// Categories are the labels the gold table delivers, not OpenSky's numeric codes; the models with none are waiting for their label to show up in the data
+		const aircraftModels = [
+			{ file: 'sphere', categories: ['No information', 'No ADS-B emitter category information', 'Reserved'], drawLengthMeters: 720 },
+			{ file: 'light', categories: ['Light'], drawLengthMeters: 2100 },
+			{ file: 'small', categories: ['Small'], drawLengthMeters: 3300 },
+			{ file: 'airliner', categories: ['Large', 'High vortex large'], drawLengthMeters: 4500 },
+			{ file: 'heavy', categories: ['Heavy'], drawLengthMeters: 6000 },
+			{ file: 'fighter', categories: ['High performance'], drawLengthMeters: 3000 },
+			{ file: 'helicopter', categories: ['Rotorcraft'], drawLengthMeters: 2700 },
+			{ file: 'glider', categories: [], drawLengthMeters: 2700 },
+			{ file: 'airship', categories: [], drawLengthMeters: 5400 },
+			{ file: 'hang-glider', categories: ['Ultralight / hang-glider / paraglider'], drawLengthMeters: 2400 },
+			{ file: 'drone', categories: [], drawLengthMeters: 500 },
+		];
+		const missingCategoryModel = aircraftModels.find(({ file }) => file === 'sphere');
 
-			// Interleaved so the dots are drawn on the globe, in the same 3D scene as the terrain
-			map.addControl(new deck.MapLibreOverlay({ interleaved: true, layers: [aircraftLayer] }));
+		function findAircraftModel(category) {
+			if (category == null) {
+				return missingCategoryModel;
+			}
+			const model = aircraftModels.find(({ categories }) => categories.includes(category));
+			if (!model) {
+				throw new Error(`Unknown aircraft category: ${category}`);
+			}
+			return model;
 		}
 
-		function createResetViewControl(view) {
-			const container = document.createElement('div');
-			container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
-			container.innerHTML =
-				'<button type="button" class="maplibregl-ctrl-reset-view" title="Reset view" aria-label="Reset view"><span class="maplibregl-ctrl-icon"></span></button>';
-
-			return {
-				onAdd: (map) => {
-					container.firstChild.onclick = () => map.easeTo({ ...view, bearing: 0, pitch: 0 });
-					return container;
-				},
-				onRemove: () => container.remove(),
-			};
-		}
-
-		const initialView = { center: [4, 50], zoom: 6 };
-		const map = new maplibregl.Map({
-			container: 'map',
-			style: 'https://tiles.openfreemap.org/styles/dark',
-			...initialView,
-			maxPitch: 85,
-		});
-
-		map.addControl(new maplibregl.NavigationControl({ showZoom: false, visualizePitch: false }), 'top-right');
-		map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-		map.addControl(createResetViewControl(initialView), 'top-right');
-
-		fetchAircraftPositions().then((positions) => addAircraftLayer(map, positions));
-
-		map.on('style.load', () => {
-			map.setProjection({ type: 'globe' });
+		async function loadBasemapStyle() {
+			const response = await fetch('https://tiles.openfreemap.org/styles/dark');
+			if (!response.ok) {
+				throw new Error(`Basemap style request failed: ${response.status}`);
+			}
+			const style = await response.json();
+			const layer = (id) => style.layers.find((entry) => entry.id === id);
+			const setPaint = (id, values) => Object.assign((layer(id).paint ??= {}), values);
+			const setLayout = (id, values) => Object.assign((layer(id).layout ??= {}), values);
+			const addLayer = (definition, beforeId) => style.layers.splice(style.layers.findIndex(({ id }) => id === beforeId), 0, definition);
 
 			// Road labels compete with city names, which matter more when tracking flights
-			['highway_name_other', 'highway_name_motorway', 'road_oneway', 'road_oneway_opposite'].forEach((id) =>
-				map.setLayoutProperty(id, 'visibility', 'none'),
-			);
+			['highway_name_other', 'highway_name_motorway', 'road_oneway', 'road_oneway_opposite'].forEach((id) => setLayout(id, { visibility: 'none' }));
+
+			// The layer references a pattern that is missing from the style's sprite, so it never draws and MapLibre logs a warning on every load
+			setLayout('landcover_wood', { visibility: 'none' });
 
 			// Lifts the stock dark palette a notch
-			map.setPaintProperty('background', 'background-color', '#181818');
-			map.setPaintProperty('water', 'fill-color', '#262628');
+			setPaint('background', { 'background-color': '#181818' });
+			setPaint('water', { 'fill-color': '#262628' });
 
 			// Runways are near-black in the stock style, so they are invisible against the dark basemap
-			map.setPaintProperty('aeroway-runway', 'line-color', '#a8a8a8');
-			map.setPaintProperty('aeroway-area', 'fill-color', '#a8a8a8');
-			map.setPaintProperty('aeroway-runway-casing', 'line-color', '#4a4a4a');
+			setPaint('aeroway-runway', { 'line-color': '#a8a8a8' });
+			setPaint('aeroway-area', { 'fill-color': '#a8a8a8' });
+			setPaint('aeroway-runway-casing', { 'line-color': '#4a4a4a' });
 			// The style starts these at zoom 11, but the tiles carry aeroway data from zoom 10
-			['aeroway-runway', 'aeroway-runway-casing'].forEach((id) => map.setLayerZoomRange(id, 10, 24));
+			['aeroway-runway', 'aeroway-runway-casing'].forEach((id) => Object.assign(layer(id), { minzoom: 10, maxzoom: 24 }));
 
 			// The tiles have no runways below zoom 10; to keep major runways visible, they are drawn from OpenStreetMap data that Claude generated into runways.geojson
-			map.addSource('runways-low-zoom', { type: 'geojson', data: '/runways.geojson' });
-			map.addLayer(
+			style.sources['runways-low-zoom'] = { type: 'geojson', data: new URL('/runways.geojson', location.href).href };
+			addLayer(
 				{
 					id: 'runways-low-zoom',
 					type: 'line',
@@ -171,42 +172,250 @@
 			);
 
 			// These layers reference an icon that is missing from the style's sprite, so MapLibre logs a console warning for each; clearing it silences that
-			['place_town', 'place_city', 'place_city_large'].forEach((id) => map.setLayoutProperty(id, 'icon-image', ''));
+			['place_town', 'place_city', 'place_city_large'].forEach((id) => setLayout(id, { 'icon-image': '' }));
 
 			// Anything smaller than a city only shows once zoomed in
 			const placeMinZoom = { place_state: 6, place_city: 5, place_town: 10, place_village: 12, place_other: 12, place_suburb: 12 };
-			map
-				.getStyle()
-				.layers.filter(({ id }) => id.startsWith('place_'))
-				.forEach(({ id, maxzoom }) => {
-					map.setPaintProperty(id, 'text-color', '#8a8a8a');
+			style.layers
+				.filter(({ id }) => id.startsWith('place_'))
+				.forEach(({ id }) => {
+					setPaint(id, { 'text-color': '#8a8a8a' });
 					if (id in placeMinZoom) {
-						map.setLayerZoomRange(id, placeMinZoom[id], maxzoom);
+						layer(id).minzoom = placeMinZoom[id];
 					}
 				});
 
-			const elevationSource = {
+			style.sources.hillshade = {
 				type: 'raster-dem',
 				tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
-				tileSize: 256,
+				// The tiles are 256 pixels, but declaring 512 makes MapLibre fetch one per rendered tile instead of four
+				tileSize: 512,
 				maxzoom: 15,
 				encoding: 'terrarium',
-				attribution: 'Terrain: <a href="https://registry.opendata.aws/terrain-tiles/">Mapzen / AWS Terrain Tiles</a>',
 			};
-			// Use separate sources for rendering hillshade and terrain to increase quality; see https://maplibre.org/maplibre-gl-js/docs/examples/3d-terrain/
-			map.addSource('hillshade', elevationSource);
-			map.addSource('terrain', elevationSource);
 			// Inserted below the waterway, road and label layers so shading never covers them
-			map.addLayer(
-				{
-					id: 'hillshade',
-					type: 'hillshade',
-					source: 'hillshade',
-					paint: { 'hillshade-exaggeration': 0.4, 'hillshade-highlight-color': '#3d4b5c' },
-				},
-				'waterway',
-			);
-			map.setTerrain({ source: 'terrain', exaggeration: 1.2 });
+			addLayer({ id: 'hillshade', type: 'hillshade', source: 'hillshade', paint: { 'hillshade-exaggeration': 0.4, 'hillshade-highlight-color': '#3d4b5c' } }, 'waterway');
+
+			// Cesium shows a tile at about 512 device pixels, so on a high-DPI screen the style's CSS pixel sizes would come out that many times smaller
+			const scale = window.devicePixelRatio;
+			const scaleSize = (size) => {
+				if (typeof size === 'number') {
+					return size * scale;
+				}
+				if (size[0] === 'interpolate') {
+					return size.map((entry, index) => (index >= 4 && index % 2 === 0 ? entry * scale : entry));
+				}
+				throw new Error(`Unsupported size expression: ${JSON.stringify(size)}`);
+			};
+			style.layers
+				.filter(({ type }) => type === 'symbol')
+				.forEach((entry) => {
+					if (entry.layout?.['text-size'] !== undefined) {
+						entry.layout['text-size'] = scaleSize(entry.layout['text-size']);
+					}
+					if (entry.paint?.['text-halo-width'] !== undefined) {
+						entry.paint['text-halo-width'] = scaleSize(entry.paint['text-halo-width']);
+					}
+				});
+			return style;
+		}
+
+		// Cesium only takes raster tiles, so each one is rendered offscreen by MapLibre from the vector style; the pixel ratio of 2 keeps them sharp
+		class MapLibreImageryProvider extends Cesium.UrlTemplateImageryProvider {
+			constructor(maplibregl, style, poolSize) {
+				// The URL template is required by the parent class, but requestImage never uses it
+				super({
+					url: '/{z}/{x}/{y}',
+					tileWidth: 512,
+					tileHeight: 512,
+					maximumLevel: 18,
+					// OpenFreeMap specifies this wording and requires the links
+					credit:
+						'Basemap: <a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
+				});
+				this._idleMaps = Array.from({ length: poolSize }, () => {
+					const container = document.createElement('div');
+					container.style.cssText = 'position: fixed; left: -10000px; width: 512px; height: 512px';
+					document.body.append(container);
+					return new maplibregl.Map({ container, style, interactive: false, attributionControl: false, fadeDuration: 0, pixelRatio: 2 });
+				});
+			}
+
+			requestImage(x, y, level) {
+				const map = this._idleMaps.pop();
+				// Returning nothing makes Cesium ask again later, nearest tiles first; queueing here would render tiles that have since left the view before the ones in view
+				if (!map) {
+					return undefined;
+				}
+				const tileCount = 2 ** level;
+				const lng = ((x + 0.5) / tileCount) * 360 - 180;
+				const lat = (Math.atan(Math.sinh(Math.PI * (1 - (2 * (y + 0.5)) / tileCount))) * 180) / Math.PI;
+				return new Promise((resolve, reject) => {
+					// The canvas is copied inside the event, before the browser can clear its drawing buffer; Cesium expects bitmaps already flipped
+					map.once('idle', () => createImageBitmap(map.getCanvas(), { imageOrientation: 'flipY' }).then(resolve, reject));
+					map.jumpTo({ center: [lng, lat], zoom: level });
+					map.triggerRepaint();
+				}).finally(() => {
+					this._idleMaps.push(map);
+					// A finished tile does not draw a frame by itself, and it is the next frame that retries the tiles that were told to wait
+					scene.requestRender();
+				});
+			}
+		}
+
+		const viewer = new Cesium.Viewer('viewer', {
+			// The default base layer and terrain need a Cesium ion token; the base layer is added below
+			baseLayer: false,
+			animation: false,
+			baseLayerPicker: false,
+			fullscreenButton: false,
+			geocoder: false,
+			infoBox: false,
+			navigationHelpButton: false,
+			sceneModePicker: false,
+			selectionIndicator: false,
+			timeline: false,
+			// Cesium otherwise ignores the display's pixel ratio, so the globe renders at half resolution on high-DPI screens
+			useBrowserRecommendedResolution: false,
+		});
+		const { scene, camera } = viewer;
+		// The models are CC BY 3.0, which requires crediting the authors
+		viewer.creditDisplay.addStaticCredit(
+			new Cesium.Credit(
+				'Aircraft models: Poly by Google, Silly Fear, Yogoshimo 2.0, Miha Lunar, jeremy, Vojtěch Balák, Eik Røgeberg via Poly Pizza, <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank">CC BY 3.0</a>, modified (<a href="/models/CREDITS.md" target="_blank">details</a>)',
+			),
+		);
+		viewer.creditDisplay.addStaticCredit(new Cesium.Credit('Flight data: <a href="https://opensky-network.org/" target="_blank">OpenSky Network</a>'));
+		viewer.creditDisplay.addStaticCredit(new Cesium.Credit('Globe: <a href="https://cesium.com/platform/cesiumjs/" target="_blank">CesiumJS</a>'));
+		// The link leads to the full list of elevation datasets the tiles require crediting
+		viewer.creditDisplay.addStaticCredit(
+			new Cesium.Credit('Terrain: <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank">Mapzen, AWS Terrain Tiles</a>'),
+		);
+		Promise.all([import('https://cdn.jsdelivr.net/npm/maplibre-gl@6.10.0/dist/maplibre-gl.mjs'), loadBasemapStyle()]).then(([maplibregl, style]) => {
+			viewer.imageryLayers.addImageryProvider(new MapLibreImageryProvider(maplibregl, style, 3));
+		});
+		// The default of 2 picks coarser imagery levels, which then show up magnified and blurry
+		scene.globe.maximumScreenSpaceError = 1;
+		scene.globe.baseColor = Cesium.Color.fromCssColorString('#181818');
+		scene.globe.showGroundAtmosphere = false;
+		scene.skyAtmosphere.show = false;
+		scene.skyBox.show = false;
+		scene.sun.show = false;
+		scene.moon.show = false;
+		scene.backgroundColor = Cesium.Color.fromCssColorString('#181818');
+
+		// Right-drag zooms by default; here it tilts and rotates like the map's right-drag did
+		Object.assign(scene.screenSpaceCameraController, {
+			zoomEventTypes: [
+				Cesium.CameraEventType.WHEEL,
+				Cesium.CameraEventType.PINCH,
+				// Touchpad pinch reaches the page as a wheel event with Ctrl held
+				{ eventType: Cesium.CameraEventType.WHEEL, modifier: Cesium.KeyboardEventModifier.CTRL },
+			],
+			tiltEventTypes: [
+				Cesium.CameraEventType.RIGHT_DRAG,
+				Cesium.CameraEventType.MIDDLE_DRAG,
+				Cesium.CameraEventType.PINCH,
+				{ eventType: Cesium.CameraEventType.LEFT_DRAG, modifier: Cesium.KeyboardEventModifier.CTRL },
+			],
+		});
+
+		// Testing showed touchpads require higher sensitivity than mouse scrolls
+		viewer.canvas.addEventListener('wheel', (event) => {
+			const mouseWheel = !event.ctrlKey && (event.deltaMode !== WheelEvent.DOM_DELTA_PIXEL || Math.abs(event.deltaY) >= 100);
+			scene.screenSpaceCameraController.zoomFactor = mouseWheel ? 5 : 12.5;
+		});
+
+		const homeView = { destination: Cesium.Cartesian3.fromDegrees(4, 50, 900_000) };
+		camera.setView(homeView);
+
+		// Beyond this distance a model is only a few pixels, so dots take over
+		const modelRangeMeters = 576_000;
+		const models = new Map();
+		const dots = new Map();
+
+		function showModel(aircraft) {
+			const { file, drawLengthMeters } = findAircraftModel(aircraft.category);
+			// The models' nose points along -Z, which Cesium turns into -X, so the nose is opposite the frame's forward axis:
+			// the heading is measured clockwise from east instead of north, and a climb needs a negative pitch
+			const orientation = new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(aircraft.heading) + Cesium.Math.PI_OVER_TWO, -aircraft.pitch, 0);
+			const model = Cesium.Model.fromGltfAsync({
+				id: aircraft,
+				url: `/models/${file}.glb`,
+				modelMatrix: Cesium.Transforms.headingPitchRollToFixedFrame(aircraft.position, orientation),
+				scale: drawLengthMeters,
+				minimumPixelSize: 2,
+				color: Cesium.Color.fromCssColorString('#8a8a86'),
+				// The default mode multiplies the tint with each model's own tones, so only their lightest parts would get the exact color
+				colorBlendMode: Cesium.ColorBlendMode.REPLACE,
+				// Thin surfaces such as wings are single-sided and vanish from above otherwise
+				backFaceCulling: false,
+			}).then((loaded) => {
+				scene.primitives.add(loaded);
+				// Hidden only once the model exists, so the aircraft never disappears while it loads
+				dots.get(aircraft).show = false;
+			});
+			models.set(aircraft, model);
+		}
+
+		function hideModel(aircraft) {
+			models.get(aircraft).then((model) => {
+				scene.primitives.remove(model);
+				dots.get(aircraft).show = true;
+			});
+			models.delete(aircraft);
+		}
+
+		// Leaves room around the aircraft for its marker and details
+		const inspectLengthPixels = 150;
+
+		function centerOnAircraft(aircraft) {
+			// Pixels per meter at a distance is canvas height / (2 * distance * tan(fov / 2)), solved for the distance that gives the length
+			const range =
+				(findAircraftModel(aircraft.category).drawLengthMeters * viewer.canvas.clientHeight) /
+				(2 * inspectLengthPixels * Math.tan(camera.frustum.fovy / 2));
+			const offset = new Cesium.HeadingPitchRange(0, -Cesium.Math.PI_OVER_TWO, range);
+			// A camera locked to another aircraft would fly relative to that frame
+			camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+			camera.flyToBoundingSphere(new Cesium.BoundingSphere(aircraft.position), {
+				offset,
+				// Locking the camera to the aircraft makes dragging orbit around it
+				complete: () => camera.lookAt(aircraft.position, offset),
+			});
+		}
+
+		// The button's own destination is the default view rectangle, and flying needs the camera unlocked from any aircraft first
+		viewer.homeButton.viewModel.command.beforeExecute.addEventListener((command) => {
+			command.cancel = true;
+			camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+			camera.flyTo(homeView);
+		});
+
+		fetchAircraft().then((aircraft) => {
+			const dotCollection = scene.primitives.add(new Cesium.PointPrimitiveCollection());
+			aircraft.forEach((entry) => dots.set(entry, dotCollection.add({ id: entry, position: entry.position, pixelSize: 4, color: Cesium.Color.fromCssColorString('#ededed') })));
+
+			const updateModels = () => {
+				for (const entry of aircraft) {
+					const near = Cesium.Cartesian3.distance(camera.positionWC, entry.position) < modelRangeMeters;
+					if (near && !models.has(entry)) {
+						showModel(entry);
+					} else if (!near && models.has(entry)) {
+						hideModel(entry);
+					}
+				}
+			};
+			camera.percentageChanged = 0.1;
+			camera.changed.addEventListener(updateModels);
+			camera.moveEnd.addEventListener(updateModels);
+			updateModels();
+
+			new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(({ position }) => {
+				const picked = scene.pick(position);
+				if (aircraft.includes(picked?.id)) {
+					centerOnAircraft(picked.id);
+				}
+			}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 		});
 	</script>
 </body>

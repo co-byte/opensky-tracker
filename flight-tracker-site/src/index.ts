@@ -116,7 +116,7 @@ async function runQuery(sql: DatabricksSqlConfig, accessToken: string, sqlText: 
 async function fetchLatestFlightState(env: Env): Promise<DatabricksQueryResult> {
 	const { auth, sql } = await loadConfig(env);
 	const accessToken = await getAccessToken(auth);
-	return runQuery(sql, accessToken, 'SELECT * FROM intro_to_data_engineering.gold.latest_flight_state');
+	return runQuery(sql, accessToken, 'SELECT longitude, latitude, geo_altitude, category, true_track, vertical_rate, velocity, icao24, callsign FROM intro_to_data_engineering.gold.latest_flight_state');
 }
 
 async function getLatestFlightStateJson(env: Env, ctx: ExecutionContext): Promise<string> {
