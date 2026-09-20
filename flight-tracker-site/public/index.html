@@ -131,9 +131,11 @@
 		}
 
 		#details {
-			display: flex;
-			flex-direction: column;
-			gap: 6px;
+			box-sizing: border-box;
+			width: 260px;
+			border: 1px solid rgba(237, 237, 237, 0.2);
+			border-left: 2px solid #e6402c;
+			background: rgba(24, 24, 24, 0.9);
 			color: #ededed;
 			font: 12px/1.6 ui-monospace, monospace;
 		}
@@ -142,55 +144,71 @@
 			display: none;
 		}
 
-		#details section {
-			position: relative;
-			box-sizing: border-box;
-			min-width: 200px;
+		#groups > *,
+		#summary {
 			padding: 10px 12px;
-			border: 1px solid rgba(237, 237, 237, 0.2);
-			border-left: 2px solid #e6402c;
-			background: rgba(24, 24, 24, 0.9);
 		}
 
-		#details button {
-			position: absolute;
-			top: 4px;
-			right: 6px;
-			padding: 0 4px;
-			border: 0;
-			background: none;
-			color: rgba(237, 237, 237, 0.4);
-			font: inherit;
+		#groups > * + *,
+		#summary {
+			border-top: 1px solid rgba(237, 237, 237, 0.2);
+		}
+
+		/* Arrives last, so it cannot shift the data above it */
+		#summary {
+			color: rgba(237, 237, 237, 0.6);
+			font-size: 11px;
+		}
+
+		#summary svg {
+			float: left;
+			width: 12px;
+			height: 12px;
+			margin: 3px 6px 0 0;
+			fill: rgba(237, 237, 237, 0.6);
+		}
+
+		#details h2 {
+			margin: 0;
 			font-size: 18px;
-			line-height: 1;
-			cursor: pointer;
-			pointer-events: auto;
+			font-weight: 600;
+			letter-spacing: 0.04em;
 		}
 
-		#details button:hover {
-			color: #ededed;
-		}
-
-		/* Sized by the data blocks above it, so a long sentence wraps instead of widening the panel */
-		#details .summary {
-			width: 0;
-			min-width: 100%;
+		#details p {
+			margin: 0;
+			color: rgba(237, 237, 237, 0.4);
 		}
 
 		#details dl {
 			display: grid;
-			grid-template-columns: auto 1fr;
-			gap: 0 16px;
+			grid-template-columns: 1fr 1fr;
+			gap: 10px 16px;
 			margin: 0;
 		}
 
 		#details dt {
 			color: rgba(237, 237, 237, 0.4);
+			font-size: 10px;
+			letter-spacing: 0.12em;
+			text-transform: uppercase;
 		}
 
 		#details dd {
 			margin: 0;
-			text-align: right;
+			font-variant-numeric: tabular-nums;
+		}
+
+		/* Altitude and speed, the two values compared most */
+		#details dl > :nth-child(-n + 2) dd {
+			font-size: 18px;
+			line-height: 1.4;
+		}
+
+		#details dd::after {
+			content: " " attr(data-unit);
+			color: rgba(237, 237, 237, 0.4);
+			font-size: 11px;
 		}
 	</style>
 </head>
@@ -207,7 +225,10 @@
 		</button>
 	</div>
 	<div id="selection-box" hidden></div>
-	<aside id="details" hidden></aside>
+	<aside id="details" hidden>
+		<div id="groups"></div>
+		<div id="summary" hidden></div>
+	</aside>
 
 	<script src="https://cdn.jsdelivr.net/npm/cesium@1.145.0/Build/Cesium/Cesium.js"></script>
 	<script>
@@ -546,48 +567,46 @@
 
 		const selectionBox = document.getElementById('selection-box');
 		const details = document.getElementById('details');
+		const groups = document.getElementById('groups');
+		const summary = document.getElementById('summary');
 		// Keeps the box visible when the aircraft is only a marker
 		const minimumBoxPixels = 24;
 		const boxPaddingPixels = 6;
 		const detailsGapPixels = 12;
 
 		function showDetails(aircraft) {
-			const value = (number, unit, scale = 1) => (number == null ? null : `${Math.round(number * scale).toLocaleString('en-US')} ${unit}`);
+			const value = (number, scale = 1) => (number == null ? null : Math.round(number * scale).toLocaleString('en-US'));
+			const rate = aircraft.verticalRate == null ? null : Math.round(aircraft.verticalRate);
+			const arrow = rate > 0 ? '▲ ' : rate < 0 ? '▼ ' : '';
 			// The aircraft itself first, then what it is doing right now
-			const groups = [
-				[
-					['Callsign', aircraft.callsign],
-					['ICAO24', aircraft.icao24],
-					['Category', aircraft.category],
-				],
-				[
-					['Altitude', value(aircraft.altitude, 'm')],
-					['Speed', value(aircraft.speed, 'km/h', 3.6)],
-					['Heading', value(aircraft.heading, '°')],
-					['Vertical rate', value(aircraft.verticalRate, 'm/s')],
-				],
-			];
-			details.replaceChildren(
-				...groups.map((rows) => {
-					const list = document.createElement('dl');
-					for (const [label, text] of rows) {
-						const term = document.createElement('dt');
-						term.textContent = label;
-						const description = document.createElement('dd');
-						description.textContent = text ?? '—';
-						list.append(term, description);
-					}
-					const section = document.createElement('section');
-					section.append(list);
-					return section;
-				}),
-			);
-			const close = document.createElement('button');
-			close.textContent = '×';
-			close.title = 'Close (Esc)';
-			close.addEventListener('click', releaseAircraft);
-			details.firstElementChild.append(close);
-			// Added once it arrives, unless the aircraft was deselected meanwhile or has no summary
+			const identity = document.createElement('div');
+			const callsign = document.createElement('h2');
+			callsign.textContent = aircraft.callsign ?? '—';
+			const registration = document.createElement('p');
+			registration.textContent = `${aircraft.icao24} · ${aircraft.category ?? '—'}`;
+			identity.append(callsign, registration);
+			const state = document.createElement('dl');
+			for (const [label, text, unit] of [
+				['Altitude', value(aircraft.altitude), 'm'],
+				['Speed', value(aircraft.speed, 3.6), 'km/h'],
+				['Heading', value(aircraft.heading), '°'],
+				['Vertical rate', rate == null ? null : arrow + Math.abs(rate), 'm/s'],
+			]) {
+				const term = document.createElement('dt');
+				term.textContent = label;
+				const description = document.createElement('dd');
+				description.textContent = text ?? '—';
+				if (text != null) {
+					description.dataset.unit = unit;
+				}
+				const cell = document.createElement('div');
+				cell.append(term, description);
+				state.append(cell);
+			}
+			groups.replaceChildren(identity, state);
+			summary.hidden = true;
+			summary.replaceChildren();
+			// Shown once it arrives, unless the aircraft was deselected meanwhile or has no summary
 			fetch(`/api/aircraft-summary?icao24=${encodeURIComponent(aircraft.icao24)}`)
 				.then(async (response) => {
 					if (!response.ok) {
@@ -599,12 +618,11 @@
 					console.error(error);
 					return 'Summary unavailable';
 				})
-				.then((summary) => {
-					if (summary && selected === aircraft) {
-						const section = document.createElement('section');
-						section.className = 'summary';
-						section.textContent = summary;
-						details.append(section);
+				.then((text) => {
+					if (text && selected === aircraft) {
+						summary.innerHTML = '<svg viewBox="0 0 24 24" role="img" aria-label="Generated by AI"><title>Generated by AI</title><path d="M10 2l2.5 7.5L20 12l-7.5 2.5L10 22l-2.5-7.5L0 12l7.5-2.5zM19 1l1 3 3 1-3 1-1 3-1-3-3-1 3-1z"/></svg>';
+						summary.append(text);
+						summary.hidden = false;
 						scene.requestRender();
 					}
 				});
