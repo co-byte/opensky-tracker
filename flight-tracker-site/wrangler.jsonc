@@ -82,7 +82,14 @@
 			"binding": "FLIGHT_CACHE",
 			"id": "1e82c18c98e4455392a6deb44f400014"
 		}
-	]
+	],
+	/**
+	 * Workers AI (writes the one-sentence summary of a selected aircraft)
+	 * https://developers.cloudflare.com/workers-ai/get-started/workers-wrangler/
+	 */
+	"ai": {
+		"binding": "AI"
+	}
 	/**
 	 * Service Bindings (communicate between multiple Workers)
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
