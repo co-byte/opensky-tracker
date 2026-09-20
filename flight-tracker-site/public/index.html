@@ -88,12 +88,32 @@
 		}
 
 		#details section {
+			position: relative;
 			box-sizing: border-box;
 			min-width: 200px;
 			padding: 10px 12px;
 			border: 1px solid rgba(237, 237, 237, 0.2);
 			border-left: 2px solid #e6402c;
 			background: rgba(24, 24, 24, 0.9);
+		}
+
+		#details button {
+			position: absolute;
+			top: 4px;
+			right: 6px;
+			padding: 0 4px;
+			border: 0;
+			background: none;
+			color: rgba(237, 237, 237, 0.4);
+			font: inherit;
+			font-size: 18px;
+			line-height: 1;
+			cursor: pointer;
+			pointer-events: auto;
+		}
+
+		#details button:hover {
+			color: #ededed;
 		}
 
 		#details dl {
@@ -488,6 +508,11 @@
 					return section;
 				}),
 			);
+			const close = document.createElement('button');
+			close.textContent = '×';
+			close.title = 'Close (Esc)';
+			close.addEventListener('click', exitAircraft);
+			details.firstElementChild.append(close);
 		}
 
 		// The box is the screen-space bounds of the model's own box, so it follows the camera's perspective
@@ -538,11 +563,25 @@
 			camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
 		}
 
+		// The view from before the first selection, so leaving returns to where the user started even after hopping between aircraft
+		let viewBeforeSelection = null;
+
+		function exitAircraft() {
+			releaseAircraft();
+			camera.flyTo(viewBeforeSelection);
+		}
+
 		function centerOnAircraft(aircraft) {
 			// Pixels per meter at a distance is canvas height / (2 * distance * tan(fov / 2)), solved for the distance that gives the length
 			const range =
 				(findAircraftModel(aircraft.category).drawLengthMeters * viewer.canvas.clientHeight) /
 				(2 * inspectLengthPixels * Math.tan(camera.frustum.fovy / 2));
+			if (!selected) {
+				viewBeforeSelection = {
+					destination: camera.positionWC.clone(),
+					orientation: { direction: camera.directionWC.clone(), up: camera.upWC.clone() },
+				};
+			}
 			// A camera locked to another aircraft would fly relative to that frame
 			releaseAircraft();
 			selected = aircraft;
@@ -587,12 +626,12 @@
 				if (aircraft.includes(picked?.id)) {
 					centerOnAircraft(picked.id);
 				} else if (selected) {
-					releaseAircraft();
+					exitAircraft();
 				}
 			}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 			document.addEventListener('keydown', (event) => {
 				if (event.key === 'Escape' && selected) {
-					releaseAircraft();
+					exitAircraft();
 				}
 			});
 		});
