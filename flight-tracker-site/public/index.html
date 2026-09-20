@@ -171,6 +171,12 @@
 			color: #ededed;
 		}
 
+		/* Sized by the data blocks above it, so a long sentence wraps instead of widening the panel */
+		#details .summary {
+			width: 0;
+			min-width: 100%;
+		}
+
 		#details dl {
 			display: grid;
 			grid-template-columns: auto 1fr;
@@ -581,6 +587,18 @@
 			close.title = 'Close (Esc)';
 			close.addEventListener('click', releaseAircraft);
 			details.firstElementChild.append(close);
+			// Added once it arrives, unless the aircraft was deselected meanwhile or has no summary
+			fetch(`/api/aircraft-summary?icao24=${encodeURIComponent(aircraft.icao24)}`)
+				.then((response) => response.json())
+				.then(({ summary }) => {
+					if (summary && selected === aircraft) {
+						const section = document.createElement('section');
+						section.className = 'summary';
+						section.textContent = summary;
+						details.append(section);
+						scene.requestRender();
+					}
+				});
 		}
 
 		// A square around the aircraft's position, which is the center of its model; Cesium's bounding sphere of a model is off-center and too small
