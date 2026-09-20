@@ -92,9 +92,9 @@
 			// The default base layer and terrain need a Cesium ion token
 			baseLayer: new Cesium.ImageryLayer(
 				new Cesium.UrlTemplateImageryProvider({
-					url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-					maximumLevel: 16,
-					credit: 'Esri, HERE, Garmin, © OpenStreetMap contributors',
+					url: '/api/map-tile/dark?z={z}&x={x}&y={y}',
+					maximumLevel: 20,
+					credit: '© MapTiler © OpenStreetMap contributors',
 				}),
 			),
 			animation: false,
@@ -171,6 +171,13 @@
 			camera.flyTo(homeView);
 		});
 
+		// The dark basemap has no runways, so major ones (1500 m or longer, from OpenStreetMap) are drawn from runways.geojson
+		Cesium.GeoJsonDataSource.load('/runways.geojson', {
+			stroke: Cesium.Color.fromCssColorString('#a8a8a8'),
+			strokeWidth: 1.5,
+			clampToGround: true,
+		}).then((runways) => viewer.dataSources.add(runways));
+
 		fetchAircraft().then((aircraft) => {
 			const dots = scene.primitives.add(new Cesium.PointPrimitiveCollection());
 			aircraft.forEach((entry) => dots.add({ id: entry, position: entry.position, pixelSize: 2, color: Cesium.Color.fromCssColorString('#ededed') }));
@@ -192,7 +199,7 @@
 
 			new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(({ position }) => {
 				const picked = scene.pick(position);
-				if (picked?.id) {
+				if (aircraft.includes(picked?.id)) {
 					centerOnAircraft(picked.id);
 				}
 			}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
