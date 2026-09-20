@@ -95,25 +95,26 @@
 					const speed = optionalNumber(row[velocity]);
 					return {
 						position: Cesium.Cartesian3.fromDegrees(Number(row[lon]), Number(row[lat]), Number(row[alt])),
-						category: optionalNumber(row[category]),
+						category: row[category],
 						heading: optionalNumber(row[heading]) ?? 0,
 						pitch: rate == null || speed == null ? 0 : Math.atan2(rate, speed),
 					};
 				});
 		}
 
+		// Categories are the labels the gold table delivers, not OpenSky's numeric codes; the models with none are waiting for their label to show up in the data
 		const aircraftModels = [
-			{ file: 'sphere', categories: [0, 1, 11, 13, 15, 16, 17, 18, 19, 20], drawLengthMeters: 720 },
-			{ file: 'light', categories: [2], drawLengthMeters: 2100 },
-			{ file: 'small', categories: [3], drawLengthMeters: 3300 },
-			{ file: 'airliner', categories: [4, 5], drawLengthMeters: 4500 },
-			{ file: 'heavy', categories: [6], drawLengthMeters: 6000 },
-			{ file: 'fighter', categories: [7], drawLengthMeters: 3000 },
-			{ file: 'helicopter', categories: [8], drawLengthMeters: 2700 },
-			{ file: 'glider', categories: [9], drawLengthMeters: 2700 },
-			{ file: 'airship', categories: [10], drawLengthMeters: 5400 },
-			{ file: 'hang-glider', categories: [12], drawLengthMeters: 2400 },
-			{ file: 'drone', categories: [14], drawLengthMeters: 1200 },
+			{ file: 'sphere', categories: ['No information', 'No ADS-B emitter category information', 'Reserved'], drawLengthMeters: 720 },
+			{ file: 'light', categories: ['Light'], drawLengthMeters: 2100 },
+			{ file: 'small', categories: ['Small'], drawLengthMeters: 3300 },
+			{ file: 'airliner', categories: ['Large', 'High vortex large'], drawLengthMeters: 4500 },
+			{ file: 'heavy', categories: ['Heavy'], drawLengthMeters: 6000 },
+			{ file: 'fighter', categories: ['High performance'], drawLengthMeters: 3000 },
+			{ file: 'helicopter', categories: ['Rotorcraft'], drawLengthMeters: 2700 },
+			{ file: 'glider', categories: [], drawLengthMeters: 2700 },
+			{ file: 'airship', categories: [], drawLengthMeters: 5400 },
+			{ file: 'hang-glider', categories: ['Ultralight / hang-glider / paraglider'], drawLengthMeters: 2400 },
+			{ file: 'drone', categories: [], drawLengthMeters: 1200 },
 		];
 		const missingCategoryModel = aircraftModels.find(({ file }) => file === 'sphere');
 
