@@ -138,6 +138,10 @@
 			font: 12px/1.6 ui-monospace, monospace;
 		}
 
+		#details[hidden] {
+			display: none;
+		}
+
 		#details section {
 			position: relative;
 			box-sizing: border-box;
@@ -235,7 +239,6 @@
 		}
 
 		// Categories are the labels the gold table delivers, not OpenSky's numeric codes
-		// size is the model's width, height and length as fractions of drawLengthMeters, which is the longest of the three
 		const aircraftModels = [
 			{
 				// Too little is known about these to pick a shape, so they stay markers
@@ -253,18 +256,17 @@
 					'Line obstacle',
 				],
 				drawLengthMeters: 720,
-				size: [1, 1, 1],
 			},
-			{ file: 'light', categories: ['Light'], drawLengthMeters: 2100, size: [1, 0.421, 0.879] },
-			{ file: 'small', categories: ['Small'], drawLengthMeters: 3300, size: [1, 0.236, 0.992] },
-			{ file: 'airliner', categories: ['Large', 'High vortex large'], drawLengthMeters: 4500, size: [1, 0.276, 0.955] },
-			{ file: 'heavy', categories: ['Heavy'], drawLengthMeters: 6000, size: [0.882, 0.182, 1] },
-			{ file: 'fighter', categories: ['High performance'], drawLengthMeters: 3000, size: [0.811, 0.281, 1] },
-			{ file: 'helicopter', categories: ['Rotorcraft'], drawLengthMeters: 2700, size: [0.751, 0.341, 1] },
-			{ file: 'glider', categories: ['Glider / sailplane'], drawLengthMeters: 2700, size: [1, 0.132, 0.527] },
-			{ file: 'airship', categories: ['Lighter-than-air'], drawLengthMeters: 5400, size: [0.421, 0.426, 1] },
-			{ file: 'hang-glider', categories: ['Ultralight / hang-glider / paraglider'], drawLengthMeters: 2400, size: [1, 0.211, 0.629] },
-			{ file: 'drone', categories: ['Unmanned aerial vehicle'], drawLengthMeters: 500, size: [0.939, 0.512, 1] },
+			{ file: 'light', categories: ['Light'], drawLengthMeters: 2100 },
+			{ file: 'small', categories: ['Small'], drawLengthMeters: 3300 },
+			{ file: 'airliner', categories: ['Large', 'High vortex large'], drawLengthMeters: 4500 },
+			{ file: 'heavy', categories: ['Heavy'], drawLengthMeters: 6000 },
+			{ file: 'fighter', categories: ['High performance'], drawLengthMeters: 3000 },
+			{ file: 'helicopter', categories: ['Rotorcraft'], drawLengthMeters: 2700 },
+			{ file: 'glider', categories: ['Glider / sailplane'], drawLengthMeters: 2700 },
+			{ file: 'airship', categories: ['Lighter-than-air'], drawLengthMeters: 5400 },
+			{ file: 'hang-glider', categories: ['Ultralight / hang-glider / paraglider'], drawLengthMeters: 2400 },
+			{ file: 'drone', categories: ['Unmanned aerial vehicle'], drawLengthMeters: 500 },
 		];
 
 		function findAircraftModel(category) {
@@ -544,13 +546,13 @@
 		const detailsGapPixels = 12;
 
 		function showDetails(aircraft) {
-			const value = (number, unit, scale = 1) => (number == null ? '—' : `${Math.round(number * scale).toLocaleString('en-US')} ${unit}`);
+			const value = (number, unit, scale = 1) => (number == null ? null : `${Math.round(number * scale).toLocaleString('en-US')} ${unit}`);
 			// The aircraft itself first, then what it is doing right now
 			const groups = [
 				[
-					['Callsign', aircraft.callsign ?? '—'],
-					['ICAO24', aircraft.icao24 ?? '—'],
-					['Type', aircraft.category ?? '—'],
+					['Callsign', aircraft.callsign],
+					['ICAO24', aircraft.icao24],
+					['Category', aircraft.category],
 				],
 				[
 					['Altitude', value(aircraft.altitude, 'm')],
@@ -566,7 +568,7 @@
 						const term = document.createElement('dt');
 						term.textContent = label;
 						const description = document.createElement('dd');
-						description.textContent = text;
+						description.textContent = text ?? '—';
 						list.append(term, description);
 					}
 					const section = document.createElement('section');
@@ -581,28 +583,18 @@
 			details.firstElementChild.append(close);
 		}
 
-		// The box is the screen-space bounds of the model's own box, so it follows the camera's perspective
+		// A square around the aircraft's position, which is the center of its model; Cesium's bounding sphere of a model is off-center and too small
 		function projectBox(aircraft) {
-			const { drawLengthMeters, size } = findAircraftModel(aircraft.category);
-			const matrix = modelMatrix(aircraft);
-			// The frame's X axis runs along the model's length, Y along its width and Z up
-			const [halfLength, halfWidth, halfHeight] = [size[2], size[0], size[1]].map((fraction) => (fraction * drawLengthMeters) / 2);
-			let [left, top, right, bottom] = [Infinity, Infinity, -Infinity, -Infinity];
-			for (const [x, y, z] of [-1, 1].flatMap((x) => [-1, 1].flatMap((y) => [-1, 1].map((z) => [x, y, z])))) {
-				const corner = Cesium.Matrix4.multiplyByPoint(matrix, new Cesium.Cartesian3(x * halfLength, y * halfWidth, z * halfHeight), new Cesium.Cartesian3());
-				const point = Cesium.SceneTransforms.worldToWindowCoordinates(scene, corner);
-				// Undefined when the corner is behind the camera, where no box can be drawn
-				if (!point) {
-					return null;
-				}
-				left = Math.min(left, point.x);
-				top = Math.min(top, point.y);
-				right = Math.max(right, point.x);
-				bottom = Math.max(bottom, point.y);
+			const radius = aircraft.model.drawLengthMeters / 2;
+			const edgePosition = Cesium.Cartesian3.add(aircraft.position, Cesium.Cartesian3.multiplyByScalar(camera.rightWC, radius, new Cesium.Cartesian3()), new Cesium.Cartesian3());
+			const center = Cesium.SceneTransforms.worldToWindowCoordinates(scene, aircraft.position);
+			const edge = Cesium.SceneTransforms.worldToWindowCoordinates(scene, edgePosition);
+			// Undefined when the point is behind the camera, where no box can be drawn
+			if (!center || !edge) {
+				return null;
 			}
-			const width = Math.max(right - left + 2 * boxPaddingPixels, minimumBoxPixels);
-			const height = Math.max(bottom - top + 2 * boxPaddingPixels, minimumBoxPixels);
-			return { x: (left + right - width) / 2, y: (top + bottom - height) / 2, width, height };
+			const side = Math.max(2 * Math.hypot(edge.x - center.x, edge.y - center.y) + 2 * boxPaddingPixels, minimumBoxPixels);
+			return { x: center.x - side / 2, y: center.y - side / 2, width: side, height: side };
 		}
 
 		// The toolbar only holds the home button; it is moved out of the viewer so it sits in the panel
