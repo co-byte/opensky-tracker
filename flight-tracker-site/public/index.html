@@ -589,8 +589,17 @@
 			details.firstElementChild.append(close);
 			// Added once it arrives, unless the aircraft was deselected meanwhile or has no summary
 			fetch(`/api/aircraft-summary?icao24=${encodeURIComponent(aircraft.icao24)}`)
-				.then((response) => response.json())
-				.then(({ summary }) => {
+				.then(async (response) => {
+					if (!response.ok) {
+						throw new Error(`Aircraft summary request failed: ${response.status}`);
+					}
+					return (await response.json()).summary;
+				})
+				.catch((error) => {
+					console.error(error);
+					return 'Summary unavailable';
+				})
+				.then((summary) => {
 					if (summary && selected === aircraft) {
 						const section = document.createElement('section');
 						section.className = 'summary';
