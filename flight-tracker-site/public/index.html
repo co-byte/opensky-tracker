@@ -232,7 +232,9 @@
 					tileWidth: 512,
 					tileHeight: 512,
 					maximumLevel: 18,
-					credit: '© OpenFreeMap © OpenMapTiles Data from OpenStreetMap, Terrain: Mapzen / AWS Terrain Tiles',
+					// OpenFreeMap specifies this wording and requires the links
+					credit:
+						'Basemap: <a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
 				});
 				this._idleMaps = Array.from({ length: poolSize }, () => {
 					const container = document.createElement('div');
