@@ -241,6 +241,14 @@
 			useBrowserRecommendedResolution: false,
 		});
 		const { scene, camera } = viewer;
+		// The models are CC BY 3.0, which requires crediting the authors
+		viewer.creditDisplay.addStaticCredit(
+			new Cesium.Credit(
+				'Aircraft models: Poly by Google, Silly Fear, Yogoshimo 2.0, Miha Lunar, jeremy, Vojtěch Balák, Eik Røgeberg via Poly Pizza, <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank">CC BY 3.0</a>, modified (<a href="/models/CREDITS.md" target="_blank">details</a>)',
+			),
+		);
+		viewer.creditDisplay.addStaticCredit(new Cesium.Credit('Flight data: <a href="https://opensky-network.org/" target="_blank">OpenSky Network</a>'));
+		viewer.creditDisplay.addStaticCredit(new Cesium.Credit('Globe: <a href="https://cesium.com/platform/cesiumjs/" target="_blank">CesiumJS</a>'));
 		Promise.all([import('https://unpkg.com/maplibre-gl@^6.10.0/dist/maplibre-gl.mjs'), loadBasemapStyle()]).then(([maplibregl, style]) => {
 			viewer.imageryLayers.addImageryProvider(new MapLibreImageryProvider(maplibregl, style, 3));
 		});
