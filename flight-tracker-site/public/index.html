@@ -188,7 +188,8 @@
 			style.sources.hillshade = {
 				type: 'raster-dem',
 				tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
-				tileSize: 256,
+				// The tiles are 256 pixels, but declaring 512 makes MapLibre fetch one per rendered tile instead of four
+				tileSize: 512,
 				maxzoom: 15,
 				encoding: 'terrarium',
 			};
@@ -242,29 +243,27 @@
 					document.body.append(container);
 					return new maplibregl.Map({ container, style, interactive: false, attributionControl: false, fadeDuration: 0, pixelRatio: 2 });
 				});
-				this._waiting = [];
 			}
 
-			async requestImage(x, y, level) {
-				const map = this._idleMaps.pop() ?? (await new Promise((resolve) => this._waiting.push(resolve)));
-				try {
-					const tileCount = 2 ** level;
-					const lng = ((x + 0.5) / tileCount) * 360 - 180;
-					const lat = (Math.atan(Math.sinh(Math.PI * (1 - (2 * (y + 0.5)) / tileCount))) * 180) / Math.PI;
-					return await new Promise((resolve, reject) => {
-						// The canvas is copied inside the event, before the browser can clear its drawing buffer; Cesium expects bitmaps already flipped
-						map.once('idle', () => createImageBitmap(map.getCanvas(), { imageOrientation: 'flipY' }).then(resolve, reject));
-						map.jumpTo({ center: [lng, lat], zoom: level });
-						map.triggerRepaint();
-					});
-				} finally {
-					const next = this._waiting.shift();
-					if (next) {
-						next(map);
-					} else {
-						this._idleMaps.push(map);
-					}
+			requestImage(x, y, level) {
+				const map = this._idleMaps.pop();
+				// Returning nothing makes Cesium ask again later, nearest tiles first; queueing here would render tiles that have since left the view before the ones in view
+				if (!map) {
+					return undefined;
 				}
+				const tileCount = 2 ** level;
+				const lng = ((x + 0.5) / tileCount) * 360 - 180;
+				const lat = (Math.atan(Math.sinh(Math.PI * (1 - (2 * (y + 0.5)) / tileCount))) * 180) / Math.PI;
+				return new Promise((resolve, reject) => {
+					// The canvas is copied inside the event, before the browser can clear its drawing buffer; Cesium expects bitmaps already flipped
+					map.once('idle', () => createImageBitmap(map.getCanvas(), { imageOrientation: 'flipY' }).then(resolve, reject));
+					map.jumpTo({ center: [lng, lat], zoom: level });
+					map.triggerRepaint();
+				}).finally(() => {
+					this._idleMaps.push(map);
+					// A finished tile does not draw a frame by itself, and it is the next frame that retries the tiles that were told to wait
+					scene.requestRender();
+				});
 			}
 		}
 
