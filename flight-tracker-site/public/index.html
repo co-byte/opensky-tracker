@@ -63,17 +63,17 @@
 		}
 
 		const aircraftModels = [
-			{ file: 'sphere', categories: [0, 1, 11, 13, 15, 16, 17, 18, 19, 20], drawLengthMeters: 360 },
-			{ file: 'light', categories: [2], drawLengthMeters: 1050 },
-			{ file: 'small', categories: [3], drawLengthMeters: 1650 },
-			{ file: 'airliner', categories: [4, 5], drawLengthMeters: 2250 },
-			{ file: 'heavy', categories: [6], drawLengthMeters: 3000 },
-			{ file: 'fighter', categories: [7], drawLengthMeters: 1500 },
-			{ file: 'helicopter', categories: [8], drawLengthMeters: 1350 },
-			{ file: 'glider', categories: [9], drawLengthMeters: 1350 },
-			{ file: 'airship', categories: [10], drawLengthMeters: 2700 },
-			{ file: 'hang-glider', categories: [12], drawLengthMeters: 1200 },
-			{ file: 'drone', categories: [14], drawLengthMeters: 600 },
+			{ file: 'sphere', categories: [0, 1, 11, 13, 15, 16, 17, 18, 19, 20], drawLengthMeters: 720 },
+			{ file: 'light', categories: [2], drawLengthMeters: 2100 },
+			{ file: 'small', categories: [3], drawLengthMeters: 3300 },
+			{ file: 'airliner', categories: [4, 5], drawLengthMeters: 4500 },
+			{ file: 'heavy', categories: [6], drawLengthMeters: 6000 },
+			{ file: 'fighter', categories: [7], drawLengthMeters: 3000 },
+			{ file: 'helicopter', categories: [8], drawLengthMeters: 2700 },
+			{ file: 'glider', categories: [9], drawLengthMeters: 2700 },
+			{ file: 'airship', categories: [10], drawLengthMeters: 5400 },
+			{ file: 'hang-glider', categories: [12], drawLengthMeters: 2400 },
+			{ file: 'drone', categories: [14], drawLengthMeters: 1200 },
 		];
 		const missingCategoryModel = aircraftModels.find(({ file }) => file === 'sphere');
 
@@ -116,11 +116,33 @@
 		scene.moon.show = false;
 		scene.backgroundColor = Cesium.Color.fromCssColorString('#181818');
 
+		// Right-drag zooms by default; here it tilts and rotates like the map's right-drag did
+		Object.assign(scene.screenSpaceCameraController, {
+			zoomEventTypes: [
+				Cesium.CameraEventType.WHEEL,
+				Cesium.CameraEventType.PINCH,
+				// Touchpad pinch reaches the page as a wheel event with Ctrl held
+				{ eventType: Cesium.CameraEventType.WHEEL, modifier: Cesium.KeyboardEventModifier.CTRL },
+			],
+			tiltEventTypes: [
+				Cesium.CameraEventType.RIGHT_DRAG,
+				Cesium.CameraEventType.MIDDLE_DRAG,
+				Cesium.CameraEventType.PINCH,
+				{ eventType: Cesium.CameraEventType.LEFT_DRAG, modifier: Cesium.KeyboardEventModifier.CTRL },
+			],
+		});
+
+		// Testing showed touchpads require higher sensitivity than mouse scrolls
+		viewer.canvas.addEventListener('wheel', (event) => {
+			const mouseWheel = !event.ctrlKey && (event.deltaMode !== WheelEvent.DOM_DELTA_PIXEL || Math.abs(event.deltaY) >= 100);
+			scene.screenSpaceCameraController.zoomFactor = mouseWheel ? 5 : 12.5;
+		});
+
 		const homeView = { destination: Cesium.Cartesian3.fromDegrees(4, 50, 900_000) };
 		camera.setView(homeView);
 
 		// Beyond this distance a model is only a few pixels, so dots take over
-		const modelRangeMeters = 100_000;
+		const modelRangeMeters = 240_000;
 		const models = new Map();
 
 		function showModel(aircraft) {
@@ -180,7 +202,7 @@
 
 		fetchAircraft().then((aircraft) => {
 			const dots = scene.primitives.add(new Cesium.PointPrimitiveCollection());
-			aircraft.forEach((entry) => dots.add({ id: entry, position: entry.position, pixelSize: 2, color: Cesium.Color.fromCssColorString('#ededed') }));
+			aircraft.forEach((entry) => dots.add({ id: entry, position: entry.position, pixelSize: 4, color: Cesium.Color.fromCssColorString('#ededed') }));
 
 			const updateModels = () => {
 				for (const entry of aircraft) {
