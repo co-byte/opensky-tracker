@@ -114,7 +114,7 @@
 			{ file: 'glider', categories: [], drawLengthMeters: 2700 },
 			{ file: 'airship', categories: [], drawLengthMeters: 5400 },
 			{ file: 'hang-glider', categories: ['Ultralight / hang-glider / paraglider'], drawLengthMeters: 2400 },
-			{ file: 'drone', categories: [], drawLengthMeters: 1200 },
+			{ file: 'drone', categories: [], drawLengthMeters: 500 },
 		];
 		const missingCategoryModel = aircraftModels.find(({ file }) => file === 'sphere');
 
@@ -329,8 +329,9 @@
 		camera.setView(homeView);
 
 		// Beyond this distance a model is only a few pixels, so dots take over
-		const modelRangeMeters = 240_000;
+		const modelRangeMeters = 576_000;
 		const models = new Map();
+		const dots = new Map();
 
 		function showModel(aircraft) {
 			const { file, drawLengthMeters } = findAircraftModel(aircraft.category);
@@ -344,14 +345,23 @@
 				scale: drawLengthMeters,
 				minimumPixelSize: 2,
 				color: Cesium.Color.fromCssColorString('#8a8a86'),
+				// The default mode multiplies the tint with each model's own tones, so only their lightest parts would get the exact color
+				colorBlendMode: Cesium.ColorBlendMode.REPLACE,
 				// Thin surfaces such as wings are single-sided and vanish from above otherwise
 				backFaceCulling: false,
-			}).then((loaded) => scene.primitives.add(loaded));
+			}).then((loaded) => {
+				scene.primitives.add(loaded);
+				// Hidden only once the model exists, so the aircraft never disappears while it loads
+				dots.get(aircraft).show = false;
+			});
 			models.set(aircraft, model);
 		}
 
 		function hideModel(aircraft) {
-			models.get(aircraft).then((model) => scene.primitives.remove(model));
+			models.get(aircraft).then((model) => {
+				scene.primitives.remove(model);
+				dots.get(aircraft).show = true;
+			});
 			models.delete(aircraft);
 		}
 
@@ -381,8 +391,8 @@
 		});
 
 		fetchAircraft().then((aircraft) => {
-			const dots = scene.primitives.add(new Cesium.PointPrimitiveCollection());
-			aircraft.forEach((entry) => dots.add({ id: entry, position: entry.position, pixelSize: 4, color: Cesium.Color.fromCssColorString('#ededed') }));
+			const dotCollection = scene.primitives.add(new Cesium.PointPrimitiveCollection());
+			aircraft.forEach((entry) => dots.set(entry, dotCollection.add({ id: entry, position: entry.position, pixelSize: 4, color: Cesium.Color.fromCssColorString('#ededed') })));
 
 			const updateModels = () => {
 				for (const entry of aircraft) {
