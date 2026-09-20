@@ -18,6 +18,7 @@ export interface Env {
 	DATABRICKS_WAREHOUSE_ID: SecretsStoreSecret;
 	DATABRICKS_CLIENT_ID: SecretsStoreSecret;
 	DATABRICKS_CLIENT_SECRET: SecretsStoreSecret;
+	MAPTILER_API_KEY: SecretsStoreSecret; // proxied tile requests carry it, so it never reaches the browser
 	FLIGHT_CACHE: KVNamespace;
 	FLIGHT_CACHE_TTL_SECONDS: number;
 }
@@ -131,11 +132,24 @@ async function getLatestFlightStateJson(env: Env, ctx: ExecutionContext): Promis
 	return json;
 }
 
+async function fetchDarkMapTile(req: Request, env: Env): Promise<Response> {
+	const params = new URL(req.url).searchParams;
+	const [z, x, y] = ['z', 'x', 'y'].map((name) => Number(params.get(name)));
+	if (![z, x, y].every(Number.isInteger)) {
+		return Response.json({ error: 'z, x and y must be integers' }, { status: 400 });
+	}
+
+	const key = await env.MAPTILER_API_KEY.get();
+	const upstream = await fetch(`https://api.maptiler.com/maps/dataviz-dark/256/${z}/${x}/${y}.png?key=${key}`);
+	return new Response(upstream.body, { status: upstream.status, headers: upstream.headers });
+}
+
 type Handler = (req: Request, env: Env, ctx: ExecutionContext) => Promise<Response>;
 
 const routes: Record<string, Handler> = {
 	'GET /api/latest-flight-state': async (_req, env, ctx) =>
 		new Response(await getLatestFlightStateJson(env, ctx), { headers: { 'Content-Type': 'application/json' } }),
+	'GET /api/map-tile/dark': (req, env) => fetchDarkMapTile(req, env),
 };
 
 export default {

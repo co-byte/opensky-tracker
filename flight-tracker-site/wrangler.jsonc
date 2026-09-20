@@ -71,6 +71,11 @@
 			"binding": "DATABRICKS_CLIENT_SECRET",
 			"store_id": "646b3fab3a7c4c02bd0527f04dff5274",
 			"secret_name": "DATABRICKS_CLIENT_SECRET"
+		},
+		{
+			"binding": "MAPTILER_API_KEY",
+			"store_id": "646b3fab3a7c4c02bd0527f04dff5274",
+			"secret_name": "MAPTILER_API_KEY"
 		}
 	],
 	/**
