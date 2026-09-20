@@ -369,14 +369,26 @@
 		// Leaves room around the aircraft for its marker and details
 		const inspectLengthPixels = 150;
 
+		let selected = null;
+
+		// Also unlocks the camera, so dragging pans again instead of orbiting the aircraft
+		function releaseAircraft() {
+			selected = null;
+			// A fly-to still in progress would otherwise lock the camera to the aircraft when it lands
+			camera.cancelFlight();
+			camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+		}
+
 		function centerOnAircraft(aircraft) {
 			// Pixels per meter at a distance is canvas height / (2 * distance * tan(fov / 2)), solved for the distance that gives the length
 			const range =
 				(findAircraftModel(aircraft.category).drawLengthMeters * viewer.canvas.clientHeight) /
 				(2 * inspectLengthPixels * Math.tan(camera.frustum.fovy / 2));
-			const offset = new Cesium.HeadingPitchRange(0, -Cesium.Math.PI_OVER_TWO, range);
 			// A camera locked to another aircraft would fly relative to that frame
-			camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+			releaseAircraft();
+			selected = aircraft;
+			// Keeping the current heading and pitch approaches the aircraft along the line of sight instead of snapping to a top view
+			const offset = new Cesium.HeadingPitchRange(camera.heading, camera.pitch, range);
 			camera.flyToBoundingSphere(new Cesium.BoundingSphere(aircraft.position), {
 				offset,
 				// Locking the camera to the aircraft makes dragging orbit around it
@@ -387,7 +399,7 @@
 		// The button's own destination is the default view rectangle, and flying needs the camera unlocked from any aircraft first
 		viewer.homeButton.viewModel.command.beforeExecute.addEventListener((command) => {
 			command.cancel = true;
-			camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+			releaseAircraft();
 			camera.flyTo(homeView);
 		});
 
@@ -414,8 +426,15 @@
 				const picked = scene.pick(position);
 				if (aircraft.includes(picked?.id)) {
 					centerOnAircraft(picked.id);
+				} else if (selected) {
+					releaseAircraft();
 				}
 			}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+			document.addEventListener('keydown', (event) => {
+				if (event.key === 'Escape' && selected) {
+					releaseAircraft();
+				}
+			});
 		});
 	</script>
 </body>
