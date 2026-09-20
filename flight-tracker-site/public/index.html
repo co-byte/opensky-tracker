@@ -7,9 +7,9 @@
 	<title>Flight Tracker</title>
 	<link rel="icon"
 		href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23181818'/><circle cx='16' cy='16' r='12.5' fill='none' stroke='%23ededed' stroke-opacity='.3' stroke-width='1.2'/><path d='M16 4l2 8.5 9 6v2.5l-9-2.5-.6 6 3.1 2.2V29L16 27.6 11.5 29v-1.8l3.1-2.2-.6-6-9 2.5v-2.5l9-6z' fill='%23ededed' transform='translate(16 16) rotate(45) scale(.68) translate(-16 -16)'/></svg>" />
-	<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@^6.10.0/dist/maplibre-gl.css" />
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.145.0/Build/Cesium/Widgets/widgets.css" />
 	<style>
-		/* Same colour as the basemap background, so nothing flashes white while tiles load */
+		/* Same color as the globe's base color, so nothing flashes white while tiles load */
 		:root {
 			color-scheme: dark;
 			background: #181818;
@@ -19,201 +19,183 @@
 			margin: 0;
 		}
 
-		#map {
+		#viewer {
 			height: 100dvh;
-		}
-
-		/* The keyboard-focusable canvas would otherwise draw a white focus ring around the whole map */
-		.maplibregl-canvas {
-			outline: none;
-		}
-
-		/* The doubled selectors outrank MapLibre's own white attribution styles */
-		.maplibregl-ctrl.maplibregl-ctrl-attrib,
-		.maplibregl-ctrl-attrib.maplibregl-compact {
-			background: rgba(24, 24, 24, 0.7);
-			color: #8b8b8b;
-		}
-
-		.maplibregl-ctrl-attrib a {
-			color: inherit;
-		}
-
-		.maplibregl-ctrl-attrib-button {
-			filter: invert(1);
-		}
-
-		/* The buttons are transparent, so inverting them turns MapLibre's black icons and light dividers dark-mode friendly */
-		.maplibregl-ctrl.maplibregl-ctrl-group {
-			background: rgba(24, 24, 24, 0.7);
-			box-shadow: none;
-		}
-
-		.maplibregl-ctrl-group button {
-			filter: invert(1);
-		}
-
-		.maplibregl-ctrl-top-right {
-			top: 50%;
-			transform: translateY(-50%);
-		}
-
-		.maplibregl-ctrl-top-right .maplibregl-ctrl-group:has(+ .maplibregl-ctrl-group) {
-			border-bottom-left-radius: 0;
-			border-bottom-right-radius: 0;
-		}
-
-		.maplibregl-ctrl-top-right .maplibregl-ctrl-group+.maplibregl-ctrl-group {
-			margin-top: 0;
-			border-top: 1px solid #222;
-			border-top-left-radius: 0;
-			border-top-right-radius: 0;
-		}
-
-		.maplibregl-ctrl-reset-view .maplibregl-ctrl-icon {
-			background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 29 29'><circle cx='14.5' cy='14.5' r='5' fill='none' stroke='%23333' stroke-width='2'/><path d='M14.5 4v5M14.5 20v5M4 14.5h5M20 14.5h5' stroke='%23333' stroke-width='2'/></svg>");
 		}
 	</style>
 </head>
 
 <body>
-	<main id="map"></main>
+	<main id="viewer"></main>
 
-	<script src="https://unpkg.com/deck.gl@^9.4.0/dist.min.js"></script>
-	<script type="module">
-		import * as maplibregl from 'https://unpkg.com/maplibre-gl@^6.10.0/dist/maplibre-gl.mjs';
-
-		async function fetchAircraftPositions() {
+	<script src="https://cdn.jsdelivr.net/npm/cesium@1.145.0/Build/Cesium/Cesium.js"></script>
+	<script>
+		async function fetchAircraft() {
 			const response = await fetch('/api/latest-flight-state');
 			if (!response.ok) {
 				throw new Error(`Latest flight state request failed: ${response.status}`);
 			}
 			const data = await response.json();
 			const columns = (data.manifest?.schema?.columns ?? []).map(({ name }) => name);
-			// Real altitudes are tiny compared to the globe's radius, so they are exaggerated to be visible
-			const altitudeScale = 2;
-			const [lon, lat, alt] = ['longitude', 'latitude', 'geo_altitude'].map((name) => columns.indexOf(name));
+			const [lon, lat, alt, category, heading, verticalRate, velocity] = [
+				'longitude',
+				'latitude',
+				'geo_altitude',
+				'category',
+				'true_track',
+				'vertical_rate',
+				'velocity',
+			].map((name) => columns.indexOf(name));
+			// Number(null) is 0, which would turn a missing velocity into a vertical climb
+			const optionalNumber = (value) => (value == null ? null : Number(value));
 			return (data.result?.data_array ?? [])
 				.filter((row) => row[lon] != null && row[lat] != null && row[alt] != null)
-				.map((row) => [Number(row[lon]), Number(row[lat]), Number(row[alt]) * altitudeScale]);
+				.map((row) => {
+					const rate = optionalNumber(row[verticalRate]);
+					const speed = optionalNumber(row[velocity]);
+					return {
+						position: Cesium.Cartesian3.fromDegrees(Number(row[lon]), Number(row[lat]), Number(row[alt])),
+						category: optionalNumber(row[category]),
+						heading: optionalNumber(row[heading]) ?? 0,
+						pitch: rate == null || speed == null ? 0 : Math.atan2(rate, speed),
+					};
+				});
 		}
 
-		function addAircraftLayer(map, positions) {
-			const aircraftLayer = new deck.ScatterplotLayer({
-				id: 'aircraft',
-				data: positions,
-				getPosition: (position) => position,
-				getFillColor: [237, 237, 237],
-				getRadius: 1,
-				radiusUnits: 'pixels',
+		const aircraftModels = [
+			{ file: 'sphere', categories: [0, 1, 11, 13, 15, 16, 17, 18, 19, 20], drawLengthMeters: 360 },
+			{ file: 'light', categories: [2], drawLengthMeters: 1050 },
+			{ file: 'small', categories: [3], drawLengthMeters: 1650 },
+			{ file: 'airliner', categories: [4, 5], drawLengthMeters: 2250 },
+			{ file: 'heavy', categories: [6], drawLengthMeters: 3000 },
+			{ file: 'fighter', categories: [7], drawLengthMeters: 1500 },
+			{ file: 'helicopter', categories: [8], drawLengthMeters: 1350 },
+			{ file: 'glider', categories: [9], drawLengthMeters: 1350 },
+			{ file: 'airship', categories: [10], drawLengthMeters: 2700 },
+			{ file: 'hang-glider', categories: [12], drawLengthMeters: 1200 },
+			{ file: 'drone', categories: [14], drawLengthMeters: 600 },
+		];
+		const missingCategoryModel = aircraftModels.find(({ file }) => file === 'sphere');
+
+		function findAircraftModel(category) {
+			if (category == null) {
+				return missingCategoryModel;
+			}
+			const model = aircraftModels.find(({ categories }) => categories.includes(category));
+			if (!model) {
+				throw new Error(`Unknown aircraft category: ${category}`);
+			}
+			return model;
+		}
+
+		const viewer = new Cesium.Viewer('viewer', {
+			// The default base layer and terrain need a Cesium ion token
+			baseLayer: new Cesium.ImageryLayer(
+				new Cesium.UrlTemplateImageryProvider({
+					url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+					maximumLevel: 16,
+					credit: 'Esri, HERE, Garmin, © OpenStreetMap contributors',
+				}),
+			),
+			animation: false,
+			baseLayerPicker: false,
+			fullscreenButton: false,
+			geocoder: false,
+			infoBox: false,
+			navigationHelpButton: false,
+			sceneModePicker: false,
+			selectionIndicator: false,
+			timeline: false,
+		});
+		const { scene, camera } = viewer;
+		scene.globe.baseColor = Cesium.Color.fromCssColorString('#181818');
+		scene.globe.showGroundAtmosphere = false;
+		scene.skyAtmosphere.show = false;
+		scene.skyBox.show = false;
+		scene.sun.show = false;
+		scene.moon.show = false;
+		scene.backgroundColor = Cesium.Color.fromCssColorString('#181818');
+
+		const homeView = { destination: Cesium.Cartesian3.fromDegrees(4, 50, 900_000) };
+		camera.setView(homeView);
+
+		// Beyond this distance a model is only a few pixels, so dots take over
+		const modelRangeMeters = 100_000;
+		const models = new Map();
+
+		function showModel(aircraft) {
+			const { file, drawLengthMeters } = findAircraftModel(aircraft.category);
+			// The models' nose points along -Z, which Cesium turns into -X, so the nose is opposite the frame's forward axis:
+			// the heading is measured clockwise from east instead of north, and a climb needs a negative pitch
+			const orientation = new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(aircraft.heading) + Cesium.Math.PI_OVER_TWO, -aircraft.pitch, 0);
+			const model = Cesium.Model.fromGltfAsync({
+				id: aircraft,
+				url: `/models/${file}.glb`,
+				modelMatrix: Cesium.Transforms.headingPitchRollToFixedFrame(aircraft.position, orientation),
+				scale: drawLengthMeters,
+				minimumPixelSize: 2,
+				color: Cesium.Color.fromCssColorString('#8a8a86'),
+				// Thin surfaces such as wings are single-sided and vanish from above otherwise
+				backFaceCulling: false,
+			}).then((loaded) => scene.primitives.add(loaded));
+			models.set(aircraft, model);
+		}
+
+		function hideModel(aircraft) {
+			models.get(aircraft).then((model) => scene.primitives.remove(model));
+			models.delete(aircraft);
+		}
+
+		// Leaves room around the aircraft for its marker and details
+		const inspectLengthPixels = 150;
+
+		function centerOnAircraft(aircraft) {
+			// Pixels per meter at a distance is canvas height / (2 * distance * tan(fov / 2)), solved for the distance that gives the length
+			const range =
+				(findAircraftModel(aircraft.category).drawLengthMeters * viewer.canvas.clientHeight) /
+				(2 * inspectLengthPixels * Math.tan(camera.frustum.fovy / 2));
+			const offset = new Cesium.HeadingPitchRange(0, -Cesium.Math.PI_OVER_TWO, range);
+			// A camera locked to another aircraft would fly relative to that frame
+			camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+			camera.flyToBoundingSphere(new Cesium.BoundingSphere(aircraft.position), {
+				offset,
+				// Locking the camera to the aircraft makes dragging orbit around it
+				complete: () => camera.lookAt(aircraft.position, offset),
 			});
-
-			// Interleaved so the dots are drawn on the globe, in the same 3D scene as the terrain
-			map.addControl(new deck.MapLibreOverlay({ interleaved: true, layers: [aircraftLayer] }));
 		}
 
-		function createResetViewControl(view) {
-			const container = document.createElement('div');
-			container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
-			container.innerHTML =
-				'<button type="button" class="maplibregl-ctrl-reset-view" title="Reset view" aria-label="Reset view"><span class="maplibregl-ctrl-icon"></span></button>';
-
-			return {
-				onAdd: (map) => {
-					container.firstChild.onclick = () => map.easeTo({ ...view, bearing: 0, pitch: 0 });
-					return container;
-				},
-				onRemove: () => container.remove(),
-			};
-		}
-
-		const initialView = { center: [4, 50], zoom: 6 };
-		const map = new maplibregl.Map({
-			container: 'map',
-			style: 'https://tiles.openfreemap.org/styles/dark',
-			...initialView,
-			maxPitch: 85,
+		// The button's own destination is the default view rectangle, and flying needs the camera unlocked from any aircraft first
+		viewer.homeButton.viewModel.command.beforeExecute.addEventListener((command) => {
+			command.cancel = true;
+			camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+			camera.flyTo(homeView);
 		});
 
-		map.addControl(new maplibregl.NavigationControl({ showZoom: false, visualizePitch: false }), 'top-right');
-		map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-		map.addControl(createResetViewControl(initialView), 'top-right');
+		fetchAircraft().then((aircraft) => {
+			const dots = scene.primitives.add(new Cesium.PointPrimitiveCollection());
+			aircraft.forEach((entry) => dots.add({ id: entry, position: entry.position, pixelSize: 2, color: Cesium.Color.fromCssColorString('#ededed') }));
 
-		fetchAircraftPositions().then((positions) => addAircraftLayer(map, positions));
-
-		map.on('style.load', () => {
-			map.setProjection({ type: 'globe' });
-
-			// Road labels compete with city names, which matter more when tracking flights
-			['highway_name_other', 'highway_name_motorway', 'road_oneway', 'road_oneway_opposite'].forEach((id) =>
-				map.setLayoutProperty(id, 'visibility', 'none'),
-			);
-
-			// The layer references a pattern that is missing from the style's sprite, so it never draws and MapLibre logs a warning on every load
-			map.setLayoutProperty('landcover_wood', 'visibility', 'none');
-
-			// Lifts the stock dark palette a notch
-			map.setPaintProperty('background', 'background-color', '#181818');
-			map.setPaintProperty('water', 'fill-color', '#262628');
-
-			// Runways are near-black in the stock style, so they are invisible against the dark basemap
-			map.setPaintProperty('aeroway-runway', 'line-color', '#a8a8a8');
-			map.setPaintProperty('aeroway-area', 'fill-color', '#a8a8a8');
-			map.setPaintProperty('aeroway-runway-casing', 'line-color', '#4a4a4a');
-			// The style starts these at zoom 11, but the tiles carry aeroway data from zoom 10
-			['aeroway-runway', 'aeroway-runway-casing'].forEach((id) => map.setLayerZoomRange(id, 10, 24));
-
-			// The tiles have no runways below zoom 10; to keep major runways visible, they are drawn from OpenStreetMap data that Claude generated into runways.geojson
-			map.addSource('runways-low-zoom', { type: 'geojson', data: '/runways.geojson' });
-			map.addLayer(
-				{
-					id: 'runways-low-zoom',
-					type: 'line',
-					source: 'runways-low-zoom',
-					minzoom: 4,
-					maxzoom: 10,
-					paint: { 'line-color': '#a8a8a8', 'line-width': ['interpolate', ['linear'], ['zoom'], 4, 0.75, 10, 2] },
-				},
-				'aeroway-runway',
-			);
-
-			// These layers reference an icon that is missing from the style's sprite, so MapLibre logs a console warning for each; clearing it silences that
-			['place_town', 'place_city', 'place_city_large'].forEach((id) => map.setLayoutProperty(id, 'icon-image', ''));
-
-			// Anything smaller than a city only shows once zoomed in
-			const placeMinZoom = { place_state: 6, place_city: 5, place_town: 10, place_village: 12, place_other: 12, place_suburb: 12 };
-			map
-				.getStyle()
-				.layers.filter(({ id }) => id.startsWith('place_'))
-				.forEach(({ id, maxzoom }) => {
-					map.setPaintProperty(id, 'text-color', '#8a8a8a');
-					if (id in placeMinZoom) {
-						map.setLayerZoomRange(id, placeMinZoom[id], maxzoom);
+			const updateModels = () => {
+				for (const entry of aircraft) {
+					const near = Cesium.Cartesian3.distance(camera.positionWC, entry.position) < modelRangeMeters;
+					if (near && !models.has(entry)) {
+						showModel(entry);
+					} else if (!near && models.has(entry)) {
+						hideModel(entry);
 					}
-				});
-
-			const elevationSource = {
-				type: 'raster-dem',
-				tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
-				tileSize: 256,
-				maxzoom: 15,
-				encoding: 'terrarium',
-				attribution: 'Terrain: <a href="https://registry.opendata.aws/terrain-tiles/">Mapzen / AWS Terrain Tiles</a>',
+				}
 			};
-			// Use separate sources for rendering hillshade and terrain to increase quality; see https://maplibre.org/maplibre-gl-js/docs/examples/3d-terrain/
-			map.addSource('hillshade', elevationSource);
-			map.addSource('terrain', elevationSource);
-			// Inserted below the waterway, road and label layers so shading never covers them
-			map.addLayer(
-				{
-					id: 'hillshade',
-					type: 'hillshade',
-					source: 'hillshade',
-					paint: { 'hillshade-exaggeration': 0.4, 'hillshade-highlight-color': '#3d4b5c' },
-				},
-				'waterway',
-			);
-			map.setTerrain({ source: 'terrain', exaggeration: 1.2 });
+			camera.percentageChanged = 0.1;
+			camera.changed.addEventListener(updateModels);
+			camera.moveEnd.addEventListener(updateModels);
+			updateModels();
+
+			new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(({ position }) => {
+				const picked = scene.pick(position);
+				if (picked?.id) {
+					centerOnAircraft(picked.id);
+				}
+			}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 		});
 	</script>
 </body>
