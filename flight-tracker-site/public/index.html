@@ -148,33 +148,27 @@
 			}
 			const data = await response.json();
 			const columns = (data.manifest?.schema?.columns ?? []).map(({ name }) => name);
-			const [lon, lat, alt, category, heading, verticalRate, velocity, icao24, callsign] = [
-				'longitude',
-				'latitude',
-				'geo_altitude',
-				'category',
-				'true_track',
-				'vertical_rate',
-				'velocity',
-				'icao24',
-				'callsign',
-			].map((name) => columns.indexOf(name));
 			// Number(null) is 0, which would turn a missing velocity into a vertical climb
 			const optionalNumber = (value) => (value == null ? null : Number(value));
 			return (data.result?.data_array ?? [])
-				.filter((row) => row[lon] != null && row[lat] != null && row[alt] != null)
+				.map((values) => Object.fromEntries(values.map((value, index) => [columns[index], value])))
+				.filter((row) => row.longitude != null && row.latitude != null && row.geo_altitude != null)
 				.map((row) => {
-					const rate = optionalNumber(row[verticalRate]);
-					const speed = optionalNumber(row[velocity]);
+					const [longitude, latitude, altitude] = [row.longitude, row.latitude, row.geo_altitude].map(Number);
+					const rate = optionalNumber(row.vertical_rate);
+					const speed = optionalNumber(row.velocity);
 					return {
-						position: Cesium.Cartesian3.fromDegrees(Number(row[lon]), Number(row[lat]), Number(row[alt])),
-						category: row[category],
-						heading: optionalNumber(row[heading]) ?? 0,
-						altitude: Number(row[alt]),
+						longitude,
+						latitude,
+						altitude,
+						position: Cesium.Cartesian3.fromDegrees(longitude, latitude, altitude),
+						model: findAircraftModel(row.category),
+						category: row.category,
+						heading: optionalNumber(row.true_track) ?? 0,
 						speed,
 						verticalRate: rate,
-						icao24: row[icao24],
-						callsign: row[callsign]?.trim() || null,
+						icao24: row.icao24,
+						callsign: row.callsign?.trim() || null,
 						pitch: rate == null || speed == null ? 0 : Math.atan2(rate, speed),
 					};
 				});
@@ -184,7 +178,8 @@
 		// size is the model's width, height and length as fractions of drawLengthMeters, which is the longest of the three
 		const aircraftModels = [
 			{
-				file: 'sphere',
+				// Too little is known about these to pick a shape, so they stay markers
+				file: null,
 				categories: [
 					'No information',
 					'No ADS-B emitter category information',
@@ -211,13 +206,9 @@
 			{ file: 'hang-glider', categories: ['Ultralight / hang-glider / paraglider'], drawLengthMeters: 2400, size: [1, 0.211, 0.629] },
 			{ file: 'drone', categories: ['Unmanned aerial vehicle'], drawLengthMeters: 500, size: [0.939, 0.512, 1] },
 		];
-		const missingCategoryModel = aircraftModels.find(({ file }) => file === 'sphere');
 
 		function findAircraftModel(category) {
-			if (category == null) {
-				return missingCategoryModel;
-			}
-			const model = aircraftModels.find(({ categories }) => categories.includes(category));
+			const model = aircraftModels.find(({ categories }) => categories.includes(category ?? 'No information'));
 			if (!model) {
 				throw new Error(`Unknown aircraft category: ${category}`);
 			}
@@ -392,6 +383,8 @@
 		// The default of 2 picks coarser imagery levels, which then show up magnified and blurry
 		scene.globe.maximumScreenSpaceError = 1;
 		scene.globe.baseColor = Cesium.Color.fromCssColorString('#181818');
+		// Performance: the scene is static most of the time, so frames are only drawn when the camera moves or a tile loads; changes made from code need scene.requestRender()
+		scene.requestRenderMode = true;
 		scene.globe.showGroundAtmosphere = false;
 		scene.skyAtmosphere.show = false;
 		scene.skyBox.show = false;
@@ -424,10 +417,16 @@
 		const homeView = { destination: Cesium.Cartesian3.fromDegrees(4, 50, 900_000) };
 		camera.setView(homeView);
 
-		// Beyond this distance a model is only a few pixels, so dots take over
-		const modelRangeMeters = 576_000;
+		// Beyond this distance a model is only a few pixels, so markers take over
+		const modelRangeMeters = 500_000;
+		// Evaluated by Cesium every frame, so an aircraft is never drawn as both, however stale the loading below is
+		const modelDisplayRange = new Cesium.DistanceDisplayCondition(0, modelRangeMeters);
+		const markerDisplayRange = new Cesium.DistanceDisplayCondition(modelRangeMeters, Number.MAX_VALUE);
+		// Models start loading a little before they become visible, so they are ready when the camera arrives
+		const modelLoadRangeMeters = modelRangeMeters * 1.1;
 		const models = new Map();
-		const dots = new Map();
+		// Shared, so an aircraft does not change color when it switches between a marker and a model
+		const aircraftColor = Cesium.Color.fromCssColorString('#8a8a86');
 
 		function modelMatrix(aircraft) {
 			// The models' nose points along -Z, which Cesium turns into -X, so the nose is opposite the frame's forward axis:
@@ -437,22 +436,22 @@
 		}
 
 		function showModel(aircraft) {
-			const { file, drawLengthMeters } = findAircraftModel(aircraft.category);
+			const { file, drawLengthMeters } = aircraft.model;
 			const model = Cesium.Model.fromGltfAsync({
 				id: aircraft,
 				url: `/models/${file}.glb`,
 				modelMatrix: modelMatrix(aircraft),
 				scale: drawLengthMeters,
+				distanceDisplayCondition: modelDisplayRange,
 				minimumPixelSize: 2,
-				color: Cesium.Color.fromCssColorString('#8a8a86'),
+				color: aircraftColor,
 				// The default mode multiplies the tint with each model's own tones, so only their lightest parts would get the exact color
 				colorBlendMode: Cesium.ColorBlendMode.REPLACE,
 				// Thin surfaces such as wings are single-sided and vanish from above otherwise
 				backFaceCulling: false,
 			}).then((loaded) => {
 				scene.primitives.add(loaded);
-				// Hidden only once the model exists, so the aircraft never disappears while it loads
-				dots.get(aircraft).show = false;
+				scene.requestRender();
 			});
 			models.set(aircraft, model);
 		}
@@ -460,7 +459,6 @@
 		function hideModel(aircraft) {
 			models.get(aircraft).then((model) => {
 				scene.primitives.remove(model);
-				dots.get(aircraft).show = true;
 			});
 			models.delete(aircraft);
 		}
@@ -472,7 +470,7 @@
 
 		const selectionBox = document.getElementById('selection-box');
 		const details = document.getElementById('details');
-		// Keeps the box visible when the aircraft is only a dot
+		// Keeps the box visible when the aircraft is only a marker
 		const minimumBoxPixels = 24;
 		const boxPaddingPixels = 6;
 		const detailsGapPixels = 12;
@@ -603,12 +601,45 @@
 		});
 
 		fetchAircraft().then((aircraft) => {
-			const dotCollection = scene.primitives.add(new Cesium.PointPrimitiveCollection());
-			aircraft.forEach((entry) => dots.set(entry, dotCollection.add({ id: entry, position: entry.position, pixelSize: 4, color: Cesium.Color.fromCssColorString('#ededed') })));
+			const markers = scene.primitives.add(new Cesium.BillboardCollection());
+			const modeled = aircraft.filter((entry) => entry.model.file !== null);
+			// Applied by the GPU, so it costs nothing per marker; sizes are multiples of the base size, blended linearly between the two distances
+			const markerScaleByDistance = new Cesium.NearFarScalar(50_000, 1.5, 2_000_000, 0.3);
+			// White, so the color tint below gives the exact color; the tip points up, the direction alignedAxis lines up with
+			const triangleImage = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 32'><path d='M8 1L15 31H1z' fill='white'/></svg>";
+			// Aircraft without a model are always markers, at any distance
+			aircraft.forEach((entry) => {
+				const heading = Cesium.Math.toRadians(entry.heading);
+				// A direction in world space, so the marker keeps pointing along the true heading and climb however the camera turns
+				const direction = Cesium.Matrix4.multiplyByPointAsVector(
+					Cesium.Transforms.eastNorthUpToFixedFrame(entry.position),
+					new Cesium.Cartesian3(Math.sin(heading) * Math.cos(entry.pitch), Math.cos(heading) * Math.cos(entry.pitch), Math.sin(entry.pitch)),
+					new Cesium.Cartesian3(),
+				);
+				markers.add({
+					id: entry,
+					position: entry.position,
+					image: triangleImage,
+					width: 11.25,
+					height: 24.75,
+					alignedAxis: direction,
+					scaleByDistance: markerScaleByDistance,
+					distanceDisplayCondition: entry.model.file === null ? undefined : markerDisplayRange,
+					color: aircraftColor,
+				});
+			});
+			// Nothing requests a frame when the image finishes loading, so the markers would stay invisible until the camera moves
+			const removeReadyCheck = scene.preUpdate.addEventListener(() => {
+				if (!markers.length || markers.get(0).ready) {
+					removeReadyCheck();
+					scene.requestRender();
+				}
+			});
+			scene.requestRender();
 
 			const updateModels = () => {
-				for (const entry of aircraft) {
-					const near = Cesium.Cartesian3.distance(camera.positionWC, entry.position) < modelRangeMeters;
+				for (const entry of modeled) {
+					const near = Cesium.Cartesian3.distance(camera.positionWC, entry.position) < modelLoadRangeMeters;
 					if (near && !models.has(entry)) {
 						showModel(entry);
 					} else if (!near && models.has(entry)) {
