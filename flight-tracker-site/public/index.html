@@ -62,11 +62,62 @@
 		.cesium-viewer .cesium-credit-expand-link:hover {
 			color: #ededed;
 		}
+
+		/* Both follow the selected aircraft; clicks pass through so the aircraft can still be picked or deselected */
+		#selection-box,
+		#details {
+			position: fixed;
+			top: 0;
+			left: 0;
+			z-index: 1;
+			pointer-events: none;
+		}
+
+		#selection-box {
+			box-sizing: border-box;
+			border: 1px solid #e6402c;
+			box-shadow: 0 0 8px rgba(230, 64, 44, 0.5);
+		}
+
+		#details {
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			color: #ededed;
+			font: 12px/1.6 ui-monospace, monospace;
+		}
+
+		#details section {
+			box-sizing: border-box;
+			min-width: 200px;
+			padding: 10px 12px;
+			border: 1px solid rgba(237, 237, 237, 0.2);
+			border-left: 2px solid #e6402c;
+			background: rgba(24, 24, 24, 0.9);
+		}
+
+		#details dl {
+			display: grid;
+			grid-template-columns: auto 1fr;
+			gap: 0 16px;
+			margin: 0;
+		}
+
+		#details dt {
+			color: rgba(237, 237, 237, 0.4);
+		}
+
+		#details dd {
+			margin: 0;
+			text-align: right;
+		}
 	</style>
 </head>
 
 <body>
 	<main id="viewer"></main>
+	<div id="selection-box" hidden></div>
+	<aside id="details" hidden></aside>
 
 	<script src="https://cdn.jsdelivr.net/npm/cesium@1.145.0/Build/Cesium/Cesium.js"></script>
 	<script>
@@ -77,7 +128,7 @@
 			}
 			const data = await response.json();
 			const columns = (data.manifest?.schema?.columns ?? []).map(({ name }) => name);
-			const [lon, lat, alt, category, heading, verticalRate, velocity] = [
+			const [lon, lat, alt, category, heading, verticalRate, velocity, icao24, callsign] = [
 				'longitude',
 				'latitude',
 				'geo_altitude',
@@ -85,6 +136,8 @@
 				'true_track',
 				'vertical_rate',
 				'velocity',
+				'icao24',
+				'callsign',
 			].map((name) => columns.indexOf(name));
 			// Number(null) is 0, which would turn a missing velocity into a vertical climb
 			const optionalNumber = (value) => (value == null ? null : Number(value));
@@ -97,24 +150,30 @@
 						position: Cesium.Cartesian3.fromDegrees(Number(row[lon]), Number(row[lat]), Number(row[alt])),
 						category: row[category],
 						heading: optionalNumber(row[heading]) ?? 0,
+						altitude: Number(row[alt]),
+						speed,
+						verticalRate: rate,
+						icao24: row[icao24],
+						callsign: row[callsign]?.trim() || null,
 						pitch: rate == null || speed == null ? 0 : Math.atan2(rate, speed),
 					};
 				});
 		}
 
 		// Categories are the labels the gold table delivers, not OpenSky's numeric codes; the models with none are waiting for their label to show up in the data
+		// size is the model's width, height and length as fractions of drawLengthMeters, which is the longest of the three
 		const aircraftModels = [
-			{ file: 'sphere', categories: ['No information', 'No ADS-B emitter category information', 'Reserved'], drawLengthMeters: 720 },
-			{ file: 'light', categories: ['Light'], drawLengthMeters: 2100 },
-			{ file: 'small', categories: ['Small'], drawLengthMeters: 3300 },
-			{ file: 'airliner', categories: ['Large', 'High vortex large'], drawLengthMeters: 4500 },
-			{ file: 'heavy', categories: ['Heavy'], drawLengthMeters: 6000 },
-			{ file: 'fighter', categories: ['High performance'], drawLengthMeters: 3000 },
-			{ file: 'helicopter', categories: ['Rotorcraft'], drawLengthMeters: 2700 },
-			{ file: 'glider', categories: [], drawLengthMeters: 2700 },
-			{ file: 'airship', categories: [], drawLengthMeters: 5400 },
-			{ file: 'hang-glider', categories: ['Ultralight / hang-glider / paraglider'], drawLengthMeters: 2400 },
-			{ file: 'drone', categories: [], drawLengthMeters: 500 },
+			{ file: 'sphere', categories: ['No information', 'No ADS-B emitter category information', 'Reserved'], drawLengthMeters: 720, size: [1, 1, 1] },
+			{ file: 'light', categories: ['Light'], drawLengthMeters: 2100, size: [1, 0.421, 0.879] },
+			{ file: 'small', categories: ['Small'], drawLengthMeters: 3300, size: [1, 0.236, 0.992] },
+			{ file: 'airliner', categories: ['Large', 'High vortex large'], drawLengthMeters: 4500, size: [1, 0.276, 0.955] },
+			{ file: 'heavy', categories: ['Heavy'], drawLengthMeters: 6000, size: [0.882, 0.182, 1] },
+			{ file: 'fighter', categories: ['High performance'], drawLengthMeters: 3000, size: [0.811, 0.281, 1] },
+			{ file: 'helicopter', categories: ['Rotorcraft'], drawLengthMeters: 2700, size: [0.751, 0.341, 1] },
+			{ file: 'glider', categories: [], drawLengthMeters: 2700, size: [1, 0.132, 0.527] },
+			{ file: 'airship', categories: [], drawLengthMeters: 5400, size: [0.421, 0.426, 1] },
+			{ file: 'hang-glider', categories: ['Ultralight / hang-glider / paraglider'], drawLengthMeters: 2400, size: [1, 0.211, 0.629] },
+			{ file: 'drone', categories: [], drawLengthMeters: 500, size: [0.939, 0.512, 1] },
 		];
 		const missingCategoryModel = aircraftModels.find(({ file }) => file === 'sphere');
 
@@ -334,15 +393,19 @@
 		const models = new Map();
 		const dots = new Map();
 
-		function showModel(aircraft) {
-			const { file, drawLengthMeters } = findAircraftModel(aircraft.category);
+		function modelMatrix(aircraft) {
 			// The models' nose points along -Z, which Cesium turns into -X, so the nose is opposite the frame's forward axis:
 			// the heading is measured clockwise from east instead of north, and a climb needs a negative pitch
 			const orientation = new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(aircraft.heading) + Cesium.Math.PI_OVER_TWO, -aircraft.pitch, 0);
+			return Cesium.Transforms.headingPitchRollToFixedFrame(aircraft.position, orientation);
+		}
+
+		function showModel(aircraft) {
+			const { file, drawLengthMeters } = findAircraftModel(aircraft.category);
 			const model = Cesium.Model.fromGltfAsync({
 				id: aircraft,
 				url: `/models/${file}.glb`,
-				modelMatrix: Cesium.Transforms.headingPitchRollToFixedFrame(aircraft.position, orientation),
+				modelMatrix: modelMatrix(aircraft),
 				scale: drawLengthMeters,
 				minimumPixelSize: 2,
 				color: Cesium.Color.fromCssColorString('#8a8a86'),
@@ -371,6 +434,86 @@
 
 		let selected = null;
 
+		const selectionBox = document.getElementById('selection-box');
+		const details = document.getElementById('details');
+		// Keeps the box visible when the aircraft is only a dot
+		const minimumBoxPixels = 24;
+		const boxPaddingPixels = 6;
+		const detailsGapPixels = 12;
+
+		function showDetails(aircraft) {
+			const value = (number, unit, scale = 1) => (number == null ? '—' : `${Math.round(number * scale).toLocaleString('en-US')} ${unit}`);
+			// The aircraft itself first, then what it is doing right now
+			const groups = [
+				[
+					['Callsign', aircraft.callsign ?? '—'],
+					['ICAO24', aircraft.icao24 ?? '—'],
+					['Type', aircraft.category ?? '—'],
+				],
+				[
+					['Altitude', value(aircraft.altitude, 'm')],
+					['Speed', value(aircraft.speed, 'km/h', 3.6)],
+					['Heading', value(aircraft.heading, '°')],
+					['Vertical rate', value(aircraft.verticalRate, 'm/s')],
+				],
+			];
+			details.replaceChildren(
+				...groups.map((rows) => {
+					const list = document.createElement('dl');
+					for (const [label, text] of rows) {
+						const term = document.createElement('dt');
+						term.textContent = label;
+						const description = document.createElement('dd');
+						description.textContent = text;
+						list.append(term, description);
+					}
+					const section = document.createElement('section');
+					section.append(list);
+					return section;
+				}),
+			);
+		}
+
+		// The box is the screen-space bounds of the model's own box, so it follows the camera's perspective
+		function projectBox(aircraft) {
+			const { drawLengthMeters, size } = findAircraftModel(aircraft.category);
+			const matrix = modelMatrix(aircraft);
+			// The frame's X axis runs along the model's length, Y along its width and Z up
+			const [halfLength, halfWidth, halfHeight] = [size[2], size[0], size[1]].map((fraction) => (fraction * drawLengthMeters) / 2);
+			let [left, top, right, bottom] = [Infinity, Infinity, -Infinity, -Infinity];
+			for (const [x, y, z] of [-1, 1].flatMap((x) => [-1, 1].flatMap((y) => [-1, 1].map((z) => [x, y, z])))) {
+				const corner = Cesium.Matrix4.multiplyByPoint(matrix, new Cesium.Cartesian3(x * halfLength, y * halfWidth, z * halfHeight), new Cesium.Cartesian3());
+				const point = Cesium.SceneTransforms.worldToWindowCoordinates(scene, corner);
+				// Undefined when the corner is behind the camera, where no box can be drawn
+				if (!point) {
+					return null;
+				}
+				left = Math.min(left, point.x);
+				top = Math.min(top, point.y);
+				right = Math.max(right, point.x);
+				bottom = Math.max(bottom, point.y);
+			}
+			const width = Math.max(right - left + 2 * boxPaddingPixels, minimumBoxPixels);
+			const height = Math.max(bottom - top + 2 * boxPaddingPixels, minimumBoxPixels);
+			return { x: (left + right - width) / 2, y: (top + bottom - height) / 2, width, height };
+		}
+
+		scene.postRender.addEventListener(() => {
+			const box = selected && projectBox(selected);
+			selectionBox.hidden = details.hidden = !box;
+			if (!box) {
+				return;
+			}
+			selectionBox.style.transform = `translate(${box.x}px, ${box.y}px)`;
+			selectionBox.style.width = `${box.width}px`;
+			selectionBox.style.height = `${box.height}px`;
+			// Beside the box, on whichever side has room
+			const fitsRight = box.x + box.width + detailsGapPixels + details.offsetWidth <= innerWidth - detailsGapPixels;
+			const x = fitsRight ? box.x + box.width + detailsGapPixels : box.x - detailsGapPixels - details.offsetWidth;
+			const y = Math.min(Math.max(box.y, detailsGapPixels), innerHeight - detailsGapPixels - details.offsetHeight);
+			details.style.transform = `translate(${x}px, ${y}px)`;
+		});
+
 		// Also unlocks the camera, so dragging pans again instead of orbiting the aircraft
 		function releaseAircraft() {
 			selected = null;
@@ -387,6 +530,7 @@
 			// A camera locked to another aircraft would fly relative to that frame
 			releaseAircraft();
 			selected = aircraft;
+			showDetails(aircraft);
 			// Keeping the current heading and pitch approaches the aircraft along the line of sight instead of snapping to a top view
 			const offset = new Cesium.HeadingPitchRange(camera.heading, camera.pitch, range);
 			camera.flyToBoundingSphere(new Cesium.BoundingSphere(aircraft.position), {
