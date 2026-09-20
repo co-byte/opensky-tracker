@@ -746,9 +746,10 @@
 			updateModels();
 
 			new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(({ position }) => {
-				const picked = scene.pick(position);
-				if (aircraft.includes(picked?.id)) {
-					centerOnAircraft(picked.id);
+				// Only aircraft carry an id
+				const picked = scene.pick(position)?.id;
+				if (picked) {
+					centerOnAircraft(picked);
 				} else if (selected) {
 					releaseAircraft();
 				}
