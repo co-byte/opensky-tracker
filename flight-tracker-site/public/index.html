@@ -414,7 +414,8 @@
 			scene.screenSpaceCameraController.zoomFactor = mouseWheel ? 5 : 12.5;
 		});
 
-		const homeView = { destination: Cesium.Cartesian3.fromDegrees(4, 50, 900_000) };
+		// Straight down with north up, high enough that the whole globe fits with room around it on a landscape screen
+		const homeView = { destination: Cesium.Cartesian3.fromDegrees(18.1, 37.5, 25_000_000) };
 		camera.setView(homeView);
 
 		// Beyond this distance a model is only a few pixels, so markers take over
@@ -509,7 +510,7 @@
 			const close = document.createElement('button');
 			close.textContent = '×';
 			close.title = 'Close (Esc)';
-			close.addEventListener('click', exitAircraft);
+			close.addEventListener('click', releaseAircraft);
 			details.firstElementChild.append(close);
 		}
 
@@ -553,6 +554,22 @@
 			details.style.transform = `translate(${x}px, ${y}px)`;
 		});
 
+		// Cesium's collision detection does not reliably keep a camera locked to an aircraft above the map, so orbiting a low aircraft could end up below the ground
+		const minimumCameraHeightMeters = 5;
+		scene.postUpdate.addEventListener(() => {
+			// A free camera is kept above the ground by Cesium; only a locked one needs this
+			if (Cesium.Matrix4.equals(camera.transform, Cesium.Matrix4.IDENTITY) || camera.positionCartographic.height >= minimumCameraHeightMeters) {
+				return;
+			}
+			const target = Cesium.Matrix4.getTranslation(camera.transform, new Cesium.Cartesian3());
+			const range = Cesium.Cartesian3.magnitude(camera.position);
+			const targetHeight = Cesium.Cartographic.fromCartesian(target).height;
+			// Adjusting the pitch instead of the position keeps the distance to the aircraft, and an aircraft high above the ground can still be viewed from below
+			const pitch = -Math.asin(Math.min((minimumCameraHeightMeters - targetHeight) / range, 1));
+			camera.lookAt(target, new Cesium.HeadingPitchRange(camera.heading, pitch, range));
+			scene.requestRender();
+		});
+
 		// Also unlocks the camera, so dragging pans again instead of orbiting the aircraft
 		function releaseAircraft() {
 			selected = null;
@@ -561,43 +578,38 @@
 			camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
 		}
 
-		// The view from before the first selection, so leaving returns to where the user started even after hopping between aircraft
-		let viewBeforeSelection = null;
+		// Cesium's own default duration (2 to 3 seconds, growing with the distance) made 50% shorter
+		function flightDuration(destination) {
+			return 0.50 * Math.min(Math.ceil(Cesium.Cartesian3.distance(camera.positionWC, destination) / 1_000_000) + 2, 3);
+		}
 
-		function exitAircraft() {
-			releaseAircraft();
-			camera.flyTo(viewBeforeSelection);
+		function flyAround(aircraft, offset) {
+			camera.flyToBoundingSphere(new Cesium.BoundingSphere(aircraft.position), {
+				offset,
+				// The camera ends up a range away from the aircraft, which is small next to the distance flown
+				duration: flightDuration(aircraft.position),
+				// Locking the camera to the aircraft makes dragging orbit around it
+				complete: () => camera.lookAt(aircraft.position, offset),
+			});
 		}
 
 		function centerOnAircraft(aircraft) {
+			const { drawLengthMeters } = aircraft.model;
 			// Pixels per meter at a distance is canvas height / (2 * distance * tan(fov / 2)), solved for the distance that gives the length
-			const range =
-				(findAircraftModel(aircraft.category).drawLengthMeters * viewer.canvas.clientHeight) /
-				(2 * inspectLengthPixels * Math.tan(camera.frustum.fovy / 2));
-			if (!selected) {
-				viewBeforeSelection = {
-					destination: camera.positionWC.clone(),
-					orientation: { direction: camera.directionWC.clone(), up: camera.upWC.clone() },
-				};
-			}
+			const range = (drawLengthMeters * viewer.canvas.clientHeight) / (2 * inspectLengthPixels * Math.tan(camera.frustum.fovy / 2));
 			// A camera locked to another aircraft would fly relative to that frame
 			releaseAircraft();
 			selected = aircraft;
 			showDetails(aircraft);
 			// Keeping the current heading and pitch approaches the aircraft along the line of sight instead of snapping to a top view
-			const offset = new Cesium.HeadingPitchRange(camera.heading, camera.pitch, range);
-			camera.flyToBoundingSphere(new Cesium.BoundingSphere(aircraft.position), {
-				offset,
-				// Locking the camera to the aircraft makes dragging orbit around it
-				complete: () => camera.lookAt(aircraft.position, offset),
-			});
+			flyAround(aircraft, new Cesium.HeadingPitchRange(camera.heading, camera.pitch, range));
 		}
 
 		// The button's own destination is the default view rectangle, and flying needs the camera unlocked from any aircraft first
 		viewer.homeButton.viewModel.command.beforeExecute.addEventListener((command) => {
 			command.cancel = true;
 			releaseAircraft();
-			camera.flyTo(homeView);
+			camera.flyTo({ ...homeView, duration: flightDuration(homeView.destination) });
 		});
 
 		fetchAircraft().then((aircraft) => {
@@ -657,12 +669,12 @@
 				if (aircraft.includes(picked?.id)) {
 					centerOnAircraft(picked.id);
 				} else if (selected) {
-					exitAircraft();
+					releaseAircraft();
 				}
 			}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 			document.addEventListener('keydown', (event) => {
 				if (event.key === 'Escape' && selected) {
-					exitAircraft();
+					releaseAircraft();
 				}
 			});
 		});
