@@ -213,6 +213,12 @@
 			animation: spin 0.8s linear infinite;
 		}
 
+		#feed-error {
+			margin: 0 0 0 6px;
+			color: #e6402c;
+			font-size: 13px;
+		}
+
 		@keyframes spin {
 			to {
 				transform: rotate(360deg);
@@ -317,6 +323,7 @@
 		</svg>
 		<h1>Waypoint</h1>
 		<div id="loading" role="status" aria-label="Loading aircraft"></div>
+		<p id="feed-error" role="alert" hidden>Aircraft data unavailable</p>
 	</header>
 	<main id="viewer"></main>
 	<div id="controls">
@@ -930,6 +937,7 @@
 		}).catch((error) => {
 			// A spinner that never ends would claim the aircraft are still on their way
 			loading.hidden = true;
+			document.getElementById('feed-error').hidden = false;
 			throw error;
 		});
 	</script>
