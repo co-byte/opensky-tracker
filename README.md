@@ -33,8 +33,6 @@ A web map that shows live aircraft positions from [OpenSky Network](https://open
 ### Airports
 
 - [ ] ![Data][data] Load airport data from [hexdb.io](https://hexdb.io/)
-- [ ] ![Data][data] ![UI][ui] Add a photo and more aircraft info to the details panel
-
 
 ### Data quality
 
