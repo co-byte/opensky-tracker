@@ -1,15 +1,8 @@
 # OpenSky Ingestion
 
-Pulls a live snapshot of aircraft currently flying over a configured
-geographic area (bounding box) from the [OpenSky Network](https://opensky-network.org/),
-a crowd-sourced air traffic tracking service. Runs completely in Databricks.
+Pulls a live snapshot of aircraft from the [OpenSky Network](https://opensky-network.org/) run in Databricks.
 
 ## Data pulled
-
-Each run returns a **state vector** for every aircraft currently inside
-the bounding box. It's a snapshot of what that aircraft is doing right now.
-
-![State vector diagram](docs/images/state_vector.svg)
 
 Each state vector is a positional array (not an object) with the following
 fields, in order. Reference: [OpenSky REST API docs](https://openskynetwork.github.io/opensky-api/rest.html#response).
@@ -69,39 +62,3 @@ fields, in order. Reference: [OpenSky REST API docs](https://openskynetwork.gith
 | 18 | Point Obstacle (includes tethered balloons) |
 | 19 | Cluster Obstacle |
 | 20 | Line Obstacle |
-
-## Usage
-
-`ingest.py` is a Databricks notebook that defines and registers a
-[Python Data Source](https://www.databricks.com/blog/simplify-data-ingestion-new-python-data-source-api)
-named `opensky`, then uses it to append a snapshot to the bronze table.
-Requires Databricks Runtime 15.4 LTS or newer (Python Data Source API /
-Spark 4.0+).
-
-Once `spark.dataSource.register(OpenSkyDataSource)` has run in a session,
-any other notebook on that cluster can pull a snapshot with:
-
-```python
-df = (
-    spark.read.format("opensky")
-    .option("token_url", TOKEN_URL)
-    .option("client_id", CLIENT_ID)
-    .option("client_secret", CLIENT_SECRET)
-    .option("lamin", "49.50")
-    .option("lamax", "51.51")
-    .option("lomin", "2.54")
-    .option("lomax", "6.41")
-    .load()
-)
-```
-
-### Bounding box
-
-`lamin` / `lamax` / `lomin` / `lomax` define a rectangle of latitude and
-longitude. Only aircraft currently inside that rectangle are returned.
-The notebook's job widgets are currently set to roughly Belgium's extent.
-
-![Bounding box diagram](docs/images/bounding_box.svg)
-
-To track a different region, pass that region's min/max latitude and
-longitude instead.
