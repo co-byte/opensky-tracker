@@ -670,6 +670,29 @@
 		const models = new Map();
 		const modelFailures = new Set();
 		const markerOf = new Map();
+
+		const minimumMarkerPixels = 5;
+
+		function focalLengthPixels() {
+			return viewer.canvas.clientHeight / (2 * Math.tan(camera.frustum.fovy / 2));
+		}
+
+		function inspectRange(aircraft) {
+			return (aircraft.model.drawLengthMeters * focalLengthPixels()) / inspectLengthPixels;
+		}
+
+		function markerScaleByDistance(aircraft) {
+			const markerLengthMeters = (aircraft.model.drawLengthMeters * 2) / 3;
+			const alwaysMarker = aircraft.model.file === null || modelFailures.has(aircraft);
+			const firstShownDistance = alwaysMarker ? inspectRange(aircraft) : modelRangeMeters;
+			const minimumSizeDistance = (markerLengthMeters * focalLengthPixels()) / minimumMarkerPixels;
+			const firstShownScale = minimumSizeDistance / firstShownDistance;
+			if (firstShownScale <= 1) {
+				return undefined;
+			}
+			// Fitted against Cesium's curve: stays within 0.6 to 1.7 times 2/3 of the model (at least the minimum) and never grows while zooming out
+			return new Cesium.NearFarScalar(firstShownDistance, firstShownScale, Math.max(0.6 * minimumSizeDistance, 1.5 * firstShownDistance), 1);
+		}
 		// Shared, so an aircraft does not change color when it switches between a marker and a model
 		const aircraftColor = Cesium.Color.fromCssColorString('#8a8a86');
 
@@ -710,7 +733,9 @@
 				(error) => {
 					console.error(`Model ${file}.glb failed to load for aircraft ${aircraft.icao24}`, error);
 					modelFailures.add(aircraft);
-					markerOf.get(aircraft).distanceDisplayCondition = undefined;
+					const marker = markerOf.get(aircraft);
+					marker.distanceDisplayCondition = undefined;
+					marker.scaleByDistance = markerScaleByDistance(aircraft);
 					scene.requestRender();
 					return null;
 				},
@@ -889,8 +914,7 @@
 
 		function centerOnAircraft(aircraft) {
 			const { drawLengthMeters } = aircraft.model;
-			// Pixels per meter at a distance is canvas height / (2 * distance * tan(fov / 2)), solved for the distance that gives the length
-			const range = (drawLengthMeters * viewer.canvas.clientHeight) / (2 * inspectLengthPixels * Math.tan(camera.frustum.fovy / 2));
+			const range = inspectRange(aircraft);
 			// A camera locked to another aircraft would fly relative to that frame
 			releaseAircraft();
 			selected = aircraft;
@@ -915,10 +939,6 @@
 		fetchAircraft().then((aircraft) => {
 			const markers = scene.primitives.add(new Cesium.BillboardCollection());
 			const modeled = aircraft.filter((entry) => entry.model.file !== null);
-			// Applied by the GPU, so it costs nothing per marker; sizes are multiples of the base size, blended linearly between the two distances.
-			// At the model range a marker is about as long as the model that replaces it, so markers along a low camera's horizon are not drawn larger than the models in front of them;
-			// zoomed out they shrink to about 5 pixels long, so dense regions stay readable instead of turning into a solid patch
-			const markerScaleByDistance = new Cesium.NearFarScalar(modelRangeMeters, 0.5, 10_000_000, 0.2);
 			// White, so the color tint below gives the exact color; the tip points up, the direction alignedAxis lines up with
 			const triangleImage = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 32'><path d='M8 1L15 31H1z' fill='white'/></svg>";
 			// Aircraft without a model are always markers, at any distance
@@ -934,10 +954,11 @@
 					id: entry,
 					position: entry.position,
 					image: triangleImage,
-					width: 11.25,
-					height: 24.75,
+					// The triangle spans 30 of the image's 32 units
+					height: (minimumMarkerPixels * 32) / 30,
+					width: (minimumMarkerPixels * 32) / 30 / 2.2,
 					alignedAxis: direction,
-					scaleByDistance: markerScaleByDistance,
+					scaleByDistance: markerScaleByDistance(entry),
 					distanceDisplayCondition: entry.model.file === null ? undefined : markerDisplayRange,
 					color: aircraftColor,
 				});
