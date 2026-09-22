@@ -7,6 +7,9 @@
 	<title>Flight Tracker</title>
 	<link rel="icon"
 		href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23181818'/><circle cx='16' cy='16' r='12.5' fill='none' stroke='%23ededed' stroke-opacity='.3' stroke-width='1.2'/><path d='M16 4l2 8.5 9 6v2.5l-9-2.5-.6 6 3.1 2.2V29L16 27.6 11.5 29v-1.8l3.1-2.2-.6-6-9 2.5v-2.5l9-6z' fill='%23ededed' transform='translate(16 16) rotate(45) scale(.68) translate(-16 -16)'/></svg>" />
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&display=swap" />
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.145.0/Build/Cesium/Widgets/widgets.css" />
 	<style>
 		/* Same color as the globe's base color, so nothing flashes white while tiles load */
@@ -21,6 +24,37 @@
 
 		#viewer {
 			height: 100dvh;
+		}
+
+		#header {
+			position: fixed;
+			top: 0;
+			right: 0;
+			left: 0;
+			z-index: 2;
+			box-sizing: border-box;
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			height: 56px;
+			padding: 0 20px;
+			background: linear-gradient(to bottom, rgba(24, 24, 24, 0.85), rgba(24, 24, 24, 0));
+			color: #f7f5f0;
+			font-family: 'Space Grotesk', system-ui, sans-serif;
+			pointer-events: none;
+		}
+
+		#header svg {
+			flex: none;
+			width: 28px;
+			height: 28px;
+		}
+
+		#header h1 {
+			margin: 0;
+			font-size: 20px;
+			font-weight: 600;
+			letter-spacing: -0.02em;
 		}
 
 		/* The compass and the toolbar's home button share one panel that grows out of the right edge with cubic-curve corners, whose curvature changes gradually where an arc's switches abruptly */
@@ -144,8 +178,7 @@
 
 		/* The box and details follow the selected aircraft; clicks pass through so the aircraft can still be picked or deselected */
 		#selection-box,
-		#details,
-		#loading {
+		#details {
 			position: fixed;
 			top: 0;
 			left: 0;
@@ -154,8 +187,7 @@
 		}
 
 		#loading {
-			top: 12px;
-			left: 12px;
+			margin-left: 6px;
 			width: 14px;
 			height: 14px;
 			border: 2px solid rgba(237, 237, 237, 0.2);
@@ -260,8 +292,16 @@
 </head>
 
 <body>
+	<header id="header">
+		<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+			<path d="M32 6L58 32L32 58L6 32Z" stroke="currentColor" stroke-width="4" stroke-linejoin="round" />
+			<path d="M8 47Q32 14 56 47" stroke-width="3" stroke-linecap="round" stroke-dasharray="1.5 7" stroke="#c97c3d" />
+			<circle cx="32" cy="32" r="6" fill="#c97c3d" />
+		</svg>
+		<h1>Waypoint</h1>
+		<div id="loading" role="status" aria-label="Loading aircraft"></div>
+	</header>
 	<main id="viewer"></main>
-	<div id="loading" role="status" aria-label="Loading aircraft"></div>
 	<div id="controls">
 		<button id="compass" aria-label="Reset north">
 			<svg viewBox="0 0 30 30">
@@ -633,6 +673,7 @@
 		const minimumBoxPixels = 24;
 		const boxPaddingPixels = 6;
 		const detailsGapPixels = 12;
+		const header = document.getElementById('header');
 
 		function showDetails(aircraft) {
 			const value = (number, scale = 1) => (number == null ? null : Math.round(number * scale).toLocaleString('en-US'));
@@ -727,7 +768,7 @@
 			// Beside the box, on whichever side has room
 			const fitsRight = box.x + box.width + detailsGapPixels + details.offsetWidth <= innerWidth - detailsGapPixels;
 			const x = fitsRight ? box.x + box.width + detailsGapPixels : box.x - detailsGapPixels - details.offsetWidth;
-			const y = Math.min(Math.max(box.y, detailsGapPixels), innerHeight - detailsGapPixels - details.offsetHeight);
+			const y = Math.min(Math.max(box.y, header.offsetHeight), innerHeight - detailsGapPixels - details.offsetHeight);
 			details.style.transform = `translate(${x}px, ${y}px)`;
 		});
 
