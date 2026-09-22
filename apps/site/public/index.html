@@ -515,6 +515,8 @@
 		// Models start loading a little before they become visible, so they are ready when the camera arrives
 		const modelLoadRangeMeters = modelRangeMeters * 1.1;
 		const models = new Map();
+		const modelFailures = new Set();
+		const markerOf = new Map();
 		// Shared, so an aircraft does not change color when it switches between a marker and a model
 		const aircraftColor = Cesium.Color.fromCssColorString('#8a8a86');
 
@@ -539,16 +541,28 @@
 				colorBlendMode: Cesium.ColorBlendMode.REPLACE,
 				// Thin surfaces such as wings are single-sided and vanish from above otherwise
 				backFaceCulling: false,
-			}).then((loaded) => {
-				scene.primitives.add(loaded);
-				scene.requestRender();
-			});
+			}).then(
+				(loaded) => {
+					scene.primitives.add(loaded);
+					scene.requestRender();
+					return loaded;
+				},
+				(error) => {
+					console.error(`Model ${file}.glb failed to load for aircraft ${aircraft.icao24}`, error);
+					modelFailures.add(aircraft);
+					markerOf.get(aircraft).distanceDisplayCondition = undefined;
+					scene.requestRender();
+					return null;
+				},
+			);
 			models.set(aircraft, model);
 		}
 
 		function hideModel(aircraft) {
 			models.get(aircraft).then((model) => {
-				scene.primitives.remove(model);
+				if (model) {
+					scene.primitives.remove(model);
+				}
 			});
 			models.delete(aircraft);
 		}
@@ -740,8 +754,9 @@
 		fetchAircraft().then((aircraft) => {
 			const markers = scene.primitives.add(new Cesium.BillboardCollection());
 			const modeled = aircraft.filter((entry) => entry.model.file !== null);
-			// Applied by the GPU, so it costs nothing per marker; sizes are multiples of the base size, blended linearly between the two distances
-			const markerScaleByDistance = new Cesium.NearFarScalar(50_000, 1.5, 2_000_000, 0.3);
+			// Applied by the GPU, so it costs nothing per marker; sizes are multiples of the base size, blended linearly between the two distances.
+			// At the model range a marker is about as long as the model that replaces it, so markers along a low camera's horizon are not drawn larger than the models in front of them
+			const markerScaleByDistance = new Cesium.NearFarScalar(modelRangeMeters, 0.5, 20_000_000, 0.3);
 			// White, so the color tint below gives the exact color; the tip points up, the direction alignedAxis lines up with
 			const triangleImage = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 32'><path d='M8 1L15 31H1z' fill='white'/></svg>";
 			// Aircraft without a model are always markers, at any distance
@@ -753,7 +768,7 @@
 					new Cesium.Cartesian3(Math.sin(heading) * Math.cos(entry.pitch), Math.cos(heading) * Math.cos(entry.pitch), Math.sin(entry.pitch)),
 					new Cesium.Cartesian3(),
 				);
-				markers.add({
+				const marker = markers.add({
 					id: entry,
 					position: entry.position,
 					image: triangleImage,
@@ -764,6 +779,7 @@
 					distanceDisplayCondition: entry.model.file === null ? undefined : markerDisplayRange,
 					color: aircraftColor,
 				});
+				markerOf.set(entry, marker);
 			});
 			// Nothing requests a frame when the image finishes loading, so the markers would stay invisible until the camera moves
 			const removeReadyCheck = scene.preUpdate.addEventListener(() => {
@@ -777,6 +793,9 @@
 
 			const updateModels = () => {
 				for (const entry of modeled) {
+					if (modelFailures.has(entry)) {
+						continue;
+					}
 					const near = Cesium.Cartesian3.distance(camera.positionWC, entry.position) < modelLoadRangeMeters;
 					if (near && !models.has(entry)) {
 						showModel(entry);
