@@ -126,15 +126,15 @@
 
 		#selection-box {
 			box-sizing: border-box;
-			border: 1px solid #e6402c;
-			box-shadow: 0 0 8px rgba(230, 64, 44, 0.5);
+			border: 1px solid #c97c3d;
+			box-shadow: 0 0 8px rgba(201, 124, 61, 0.5);
 		}
 
 		#details {
 			box-sizing: border-box;
 			width: 260px;
 			border: 1px solid rgba(237, 237, 237, 0.2);
-			border-left: 2px solid #e6402c;
+			border-left: 2px solid #c97c3d;
 			background: rgba(24, 24, 24, 0.9);
 			color: #ededed;
 			font: 12px/1.6 ui-monospace, monospace;
@@ -219,7 +219,7 @@
 	<div id="controls">
 		<button id="compass" aria-label="Reset north">
 			<svg viewBox="0 0 30 30">
-				<path d="M15 5l4 10h-8z" fill="#e6402c" />
+				<path d="M15 5l4 10h-8z" fill="#c97c3d" />
 				<path d="M15 25l-4-10h8z" fill="#ededed" fill-opacity="0.4" />
 			</svg>
 		</button>
@@ -576,7 +576,7 @@
 		const groundLine = scene.primitives.add(new Cesium.PolylineCollection()).add({
 			show: false,
 			width: 2,
-			material: Cesium.Material.fromType('Color', { color: Cesium.Color.fromCssColorString('#e6402c') }),
+			material: Cesium.Material.fromType('Color', { color: Cesium.Color.fromCssColorString('#c97c3d') }),
 		});
 
 		const selectionBox = document.getElementById('selection-box');
