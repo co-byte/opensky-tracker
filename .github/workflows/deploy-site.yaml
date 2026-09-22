@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - site/**
+      - apps/site/**
       - .github/workflows/deploy-site.yaml
 jobs:
   deploy:
@@ -16,6 +16,6 @@ jobs:
       - name: Build & Deploy Worker
         uses: cloudflare/wrangler-action@v4
         with:
-          workingDirectory: site
+          workingDirectory: apps/site
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
