@@ -50,4 +50,4 @@ erDiagram
 
 ## Related
 
-The [opensky-tracker](https://github.com/co-byte/opensky-tracker) project features a website that currently consumes latest_flight_state.
+The [Waypoint](https://github.com/co-byte/waypoint) project features a website that currently consumes latest_flight_state.
