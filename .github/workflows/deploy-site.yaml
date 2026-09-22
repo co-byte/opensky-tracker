@@ -1,12 +1,12 @@
-name: Deploy flight tracker website
+name: Deploy Waypoint website
 on:
   workflow_dispatch:
   push:
     branches:
       - main
     paths:
-      - flight-tracker-site/**
-      - .github/workflows/deploy-flight-tracker-site.yaml
+      - site/**
+      - .github/workflows/deploy-site.yaml
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -16,6 +16,6 @@ jobs:
       - name: Build & Deploy Worker
         uses: cloudflare/wrangler-action@v4
         with:
-          workingDirectory: flight-tracker-site
+          workingDirectory: site
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
