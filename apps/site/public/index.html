@@ -213,6 +213,45 @@
 			animation: spin 0.8s linear infinite;
 		}
 
+		#search-form {
+			display: flex;
+			flex: 1 1 auto;
+			justify-content: flex-end;
+			align-items: center;
+			gap: 10px;
+			min-width: 0;
+			pointer-events: auto;
+		}
+
+		#search {
+			box-sizing: border-box;
+			flex: 0 1 240px;
+			min-width: 0;
+			height: 32px;
+			border: 1px solid rgba(237, 237, 237, 0.2);
+			border-radius: 0;
+			padding: 0 10px;
+			background: rgba(24, 24, 24, 0.9);
+			color: #ededed;
+			font: 13px 'Space Grotesk', system-ui, sans-serif;
+		}
+
+		#search::placeholder {
+			color: rgba(237, 237, 237, 0.4);
+		}
+
+		#search:focus {
+			outline: none;
+			border-color: #c97c3d;
+		}
+
+		#search-count {
+			color: rgba(237, 237, 237, 0.4);
+			font-size: 12px;
+			font-variant-numeric: tabular-nums;
+			white-space: nowrap;
+		}
+
 		#feed-error {
 			margin: 0 0 0 6px;
 			color: #e6402c;
@@ -324,6 +363,10 @@
 		<h1>Waypoint</h1>
 		<div id="loading" role="status" aria-label="Loading aircraft"></div>
 		<p id="feed-error" role="alert" hidden>Aircraft data unavailable</p>
+		<form id="search-form" role="search">
+			<span id="search-count" aria-live="polite"></span>
+			<input id="search" type="search" placeholder="Callsign, ICAO or type" aria-label="Search aircraft by callsign, ICAO address or type" autocomplete="off" spellcheck="false" disabled />
+		</form>
 	</header>
 	<main id="viewer"></main>
 	<div id="controls">
@@ -637,6 +680,12 @@
 			return Cesium.Transforms.headingPitchRollToFixedFrame(aircraft.position, orientation);
 		}
 
+		let searchQuery = '';
+
+		function matchesSearch(aircraft) {
+			return !searchQuery || [aircraft.callsign, aircraft.icao24, aircraft.category].some((text) => text?.toLowerCase().includes(searchQuery));
+		}
+
 		function showModel(aircraft) {
 			const { file, drawLengthMeters } = aircraft.model;
 			const model = Cesium.Model.fromGltfAsync({
@@ -653,6 +702,7 @@
 				backFaceCulling: false,
 			}).then(
 				(loaded) => {
+					loaded.show = matchesSearch(aircraft);
 					scene.primitives.add(loaded);
 					scene.requestRender();
 					return loaded;
@@ -932,6 +982,45 @@
 			document.addEventListener('keydown', (event) => {
 				if (event.key === 'Escape' && selected) {
 					releaseAircraft();
+				}
+			});
+
+			const search = document.getElementById('search');
+			const searchCount = document.getElementById('search-count');
+			let matches = aircraft;
+			let matchIndex = -1;
+			search.disabled = false;
+			search.addEventListener('input', () => {
+				searchQuery = search.value.trim().toLowerCase();
+				matches = aircraft.filter(matchesSearch);
+				matchIndex = -1;
+				for (const entry of aircraft) {
+					markerOf.get(entry).show = matchesSearch(entry);
+					models.get(entry)?.then((model) => {
+						if (model) {
+							model.show = matchesSearch(entry);
+						}
+					});
+				}
+				if (selected && !matchesSearch(selected)) {
+					releaseAircraft();
+				}
+				searchCount.textContent = searchQuery ? `${matches.length.toLocaleString('en-US')} of ${aircraft.length.toLocaleString('en-US')}` : '';
+				scene.requestRender();
+			});
+			document.getElementById('search-form').addEventListener('submit', (event) => {
+				event.preventDefault();
+				if (searchQuery && matches.length) {
+					matchIndex = (matchIndex + 1) % matches.length;
+					centerOnAircraft(matches[matchIndex]);
+				}
+			});
+			search.addEventListener('keydown', (event) => {
+				if (event.key === 'Escape' && search.value) {
+					event.preventDefault();
+					event.stopPropagation();
+					search.value = '';
+					search.dispatchEvent(new Event('input'));
 				}
 			});
 		}).catch((error) => {
