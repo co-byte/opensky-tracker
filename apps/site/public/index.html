@@ -916,8 +916,9 @@
 			const markers = scene.primitives.add(new Cesium.BillboardCollection());
 			const modeled = aircraft.filter((entry) => entry.model.file !== null);
 			// Applied by the GPU, so it costs nothing per marker; sizes are multiples of the base size, blended linearly between the two distances.
-			// At the model range a marker is about as long as the model that replaces it, so markers along a low camera's horizon are not drawn larger than the models in front of them
-			const markerScaleByDistance = new Cesium.NearFarScalar(modelRangeMeters, 0.5, 20_000_000, 0.3);
+			// At the model range a marker is about as long as the model that replaces it, so markers along a low camera's horizon are not drawn larger than the models in front of them;
+			// zoomed out they shrink to about 5 pixels long, so dense regions stay readable instead of turning into a solid patch
+			const markerScaleByDistance = new Cesium.NearFarScalar(modelRangeMeters, 0.5, 10_000_000, 0.2);
 			// White, so the color tint below gives the exact color; the tip points up, the direction alignedAxis lines up with
 			const triangleImage = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 32'><path d='M8 1L15 31H1z' fill='white'/></svg>";
 			// Aircraft without a model are always markers, at any distance
