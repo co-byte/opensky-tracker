@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 380" font-family="Helvetica, Arial, sans-serif">
+  <rect x="0" y="0" width="520" height="380" fill="#fbfbfa" stroke="#d0d0cc" stroke-width="1"/>
+
+  <text x="260" y="26" text-anchor="middle" font-size="15" font-weight="600" fill="#222">
+    One state vector = one aircraft, one moment in time
+  </text>
+
+  <!-- leader lines to the aircraft icon -->
+  <g stroke="#a9c3e3" stroke-width="1.5">
+    <line x1="210" y1="128" x2="258" y2="182"/>
+    <line x1="310" y1="128" x2="262" y2="182"/>
+    <line x1="210" y1="252" x2="258" y2="198"/>
+    <line x1="310" y1="252" x2="262" y2="198"/>
+  </g>
+
+  <!-- aircraft icon -->
+  <circle cx="260" cy="190" r="34" fill="#eaf2fb" stroke="#3568b5" stroke-width="2"/>
+  <text x="260" y="203" text-anchor="middle" font-size="34">✈</text>
+
+  <!-- Identity -->
+  <g>
+    <rect x="40" y="40" width="170" height="88" rx="6" fill="#eaf2fb" stroke="#3568b5" stroke-width="1.5"/>
+    <text x="52" y="60" font-size="12" font-weight="700" fill="#3568b5">IDENTITY</text>
+    <text x="52" y="80" font-size="11" fill="#333">icao24 (transponder id)</text>
+    <text x="52" y="96" font-size="11" fill="#333">callsign</text>
+    <text x="52" y="112" font-size="11" fill="#333">origin_country</text>
+  </g>
+
+  <!-- Position -->
+  <g>
+    <rect x="310" y="40" width="170" height="88" rx="6" fill="#eaf2fb" stroke="#3568b5" stroke-width="1.5"/>
+    <text x="322" y="60" font-size="12" font-weight="700" fill="#3568b5">POSITION</text>
+    <text x="322" y="80" font-size="11" fill="#333">latitude, longitude</text>
+    <text x="322" y="96" font-size="11" fill="#333">baro_altitude</text>
+    <text x="322" y="112" font-size="11" fill="#333">geo_altitude</text>
+  </g>
+
+  <!-- Movement -->
+  <g>
+    <rect x="40" y="252" width="170" height="88" rx="6" fill="#eaf2fb" stroke="#3568b5" stroke-width="1.5"/>
+    <text x="52" y="272" font-size="12" font-weight="700" fill="#3568b5">MOVEMENT</text>
+    <text x="52" y="292" font-size="11" fill="#333">velocity, true_track</text>
+    <text x="52" y="308" font-size="11" fill="#333">vertical_rate</text>
+    <text x="52" y="324" font-size="11" fill="#333">on_ground</text>
+  </g>
+
+  <!-- Timing -->
+  <g>
+    <rect x="310" y="252" width="170" height="88" rx="6" fill="#eaf2fb" stroke="#3568b5" stroke-width="1.5"/>
+    <text x="322" y="272" font-size="12" font-weight="700" fill="#3568b5">TIMING</text>
+    <text x="322" y="292" font-size="11" fill="#333">time_position</text>
+    <text x="322" y="308" font-size="11" fill="#333">last_contact</text>
+  </g>
+</svg>
