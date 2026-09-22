@@ -96,6 +96,11 @@
 			background-color: #262628;
 		}
 
+		#controls button:focus-visible {
+			outline: none;
+			border-color: #c97c3d;
+		}
+
 		#compass svg {
 			display: block;
 		}
@@ -123,6 +128,12 @@
 
 		.cesium-viewer-bottom {
 			padding: 0 12px 10px;
+			font-family: 'Space Grotesk', system-ui, sans-serif;
+		}
+
+		.cesium-viewer .cesium-widget-credits {
+			font-size: 11px;
+			letter-spacing: 0.02em;
 		}
 
 		.cesium-viewer .cesium-credit-expand-link {
@@ -130,7 +141,8 @@
 			text-decoration: none;
 		}
 
-		.cesium-viewer .cesium-credit-expand-link:hover {
+		.cesium-viewer .cesium-credit-expand-link:hover,
+		.cesium-viewer .cesium-credit-expand-link:focus-visible {
 			color: #ededed;
 		}
 
@@ -139,6 +151,7 @@
 		}
 
 		.cesium-viewer .cesium-credit-lightbox {
+			font-family: 'Space Grotesk', system-ui, sans-serif;
 			border: 1px solid rgba(237, 237, 237, 0.2);
 			border-radius: 0;
 			background-color: rgba(24, 24, 24, 0.9);
