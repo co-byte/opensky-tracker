@@ -28,6 +28,11 @@
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ### origin_country
+
+# COMMAND ----------
+
 # MAGIC %sql
 # MAGIC -- select distinct origin_country from intro_to_data_engineering.bronze.opensky_states_raw
 # MAGIC
@@ -36,7 +41,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## icao24
+# MAGIC ### icao24
 
 # COMMAND ----------
 
@@ -53,7 +58,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## callsign
+# MAGIC ### callsign
 
 # COMMAND ----------
 
@@ -99,12 +104,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## origin_country
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## time_position
+# MAGIC ### time_position
 
 # COMMAND ----------
 
@@ -114,17 +114,17 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## last_contact
+# MAGIC ### last_contact
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## latitude
+# MAGIC ### latitude
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## baro_altitude
+# MAGIC ### baro_altitude
 
 # COMMAND ----------
 
@@ -136,7 +136,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## on_ground
+# MAGIC ### on_ground
 
 # COMMAND ----------
 
@@ -146,7 +146,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## velocity
+# MAGIC ### velocity
 
 # COMMAND ----------
 
@@ -164,7 +164,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## true_track
+# MAGIC ### true_track
 
 # COMMAND ----------
 
@@ -176,7 +176,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## vertical_rate
+# MAGIC ### vertical_rate
 
 # COMMAND ----------
 
@@ -189,7 +189,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Observations
+# MAGIC #### Observations
 # MAGIC - Points cluster in two normal distributions centered around -7° (descending) and +7° (ascending), with a single large spike at 0° (level flight)
 
 # COMMAND ----------
@@ -219,7 +219,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Category
+# MAGIC #### Category
 # MAGIC - 3 -> small aircraft; fly lower (ceiling= +-3k)
 # MAGIC - 4 -> Large aircraft, seem to have fly horizontal around 11km height, vertical_rate around -10 and 8
 # MAGIC - 5 -> no significant observations
@@ -377,7 +377,7 @@ display(result)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## sensors
+# MAGIC ### sensors
 
 # COMMAND ----------
 
@@ -388,7 +388,7 @@ display(result)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## geo_altitude
+# MAGIC ### geo_altitude
 
 # COMMAND ----------
 
@@ -412,7 +412,7 @@ display(result)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## squawk
+# MAGIC ### squawk
 
 # COMMAND ----------
 
@@ -442,11 +442,11 @@ display(result)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## spi
+# MAGIC ### spi
 # MAGIC
-# MAGIC ## position_source
+# MAGIC ### position_source
 # MAGIC
-# MAGIC ## category
+# MAGIC ### category
 # MAGIC
 
 # COMMAND ----------
@@ -511,7 +511,7 @@ find_functional_dependencies(df)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 3. Tuple-level constraints
+# MAGIC ## 3. Tuple-level constraints
 # MAGIC
 
 # COMMAND ----------
@@ -553,13 +553,13 @@ find_functional_dependencies(df)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Observations
+# MAGIC ### Observations
 # MAGIC - (geo_altitude - baro_altitude) is binomially distributed
 # MAGIC - (geo_altitude / baro_altitude) is heavily skewed
 # MAGIC - extreme outliers are present
 # MAGIC - both geo_altitude and baro_altitude values can go from (below) 0 to +10k
 # MAGIC
-# MAGIC ## Next steps
+# MAGIC ### Next steps
 # MAGIC - Use IQR to detect outliers
 # MAGIC - Verify assumption that using the diff will result in fewer false positives than when relying on ratio (due to the large range of altitude values)
 
@@ -639,11 +639,11 @@ find_functional_dependencies(df)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Observations:
+# MAGIC ### Observations
 # MAGIC - Relying on (geo / baro) to detect outliers results in systematic false positives for lower altitudes
 # MAGIC - (geo - baro) does not suffer from this
 # MAGIC
-# MAGIC Conclusion:
+# MAGIC ### Conclusion
 # MAGIC - (geo-baro)
 # MAGIC - We can label data points as outliers if:
 # MAGIC $$ (geo\\_altitude - baro\\_altitude) \notin [Q1 - 1.5\*IQR, Q3 + 1.5\*IQR] $$
@@ -682,9 +682,9 @@ find_functional_dependencies(df)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # X. Enrichment
+# MAGIC ## X. Enrichment
 # MAGIC
-# MAGIC ## Map aircraft_category & position_source codes to string values
+# MAGIC ### Map aircraft_category & position_source codes to string values
 
 # COMMAND ----------
 
