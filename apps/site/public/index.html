@@ -4,7 +4,7 @@
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<title>Waypoint — Live Flight Tracker</title>
+	<title>Waypoint - Live Flight Tracker</title>
 	<meta name="description" content="Live aircraft positions on a 3D globe, from OpenSky Network data. Select an aircraft to see its altitude, speed and heading." />
 	<meta name="theme-color" content="#181818" />
 	<link rel="icon" href="/favicon.ico" sizes="32x32" />
@@ -780,9 +780,9 @@
 			// The aircraft itself first, then what it is doing right now
 			const identity = document.createElement('div');
 			const callsign = document.createElement('h2');
-			callsign.textContent = aircraft.callsign ?? '—';
+			callsign.textContent = aircraft.callsign ?? '-';
 			const registration = document.createElement('p');
-			registration.textContent = `${aircraft.icao24} · ${aircraft.category ?? '—'}`;
+			registration.textContent = `${aircraft.icao24} · ${aircraft.category ?? '-'}`;
 			identity.append(callsign, registration);
 			const state = document.createElement('dl');
 			for (const [label, text, unit] of [
@@ -794,7 +794,7 @@
 				const term = document.createElement('dt');
 				term.textContent = label;
 				const description = document.createElement('dd');
-				description.textContent = text ?? '—';
+				description.textContent = text ?? '-';
 				if (text != null) {
 					description.dataset.unit = unit;
 				}
