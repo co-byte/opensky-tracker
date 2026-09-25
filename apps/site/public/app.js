@@ -197,7 +197,7 @@ function showDetails(aircraft) {
 	const callsign = document.createElement('h2');
 	callsign.textContent = aircraft.callsign ?? '-';
 	const registration = document.createElement('p');
-	registration.textContent = `${aircraft.icao24} · ${aircraft.category ?? '-'}`;
+	registration.textContent = `${aircraft.icao24} · ${aircraft.category}`;
 	identity.append(callsign, registration);
 	const state = document.createElement('dl');
 	for (const [label, text, unit] of [
@@ -355,8 +355,8 @@ viewer.homeButton.viewModel.command.beforeExecute.addEventListener((command) => 
 });
 
 const loading = document.getElementById('loading');
-fetchAircraft()
-	.then((aircraft) => {
+fetchAircraft().then(
+	(aircraft) => {
 		const markers = scene.primitives.add(new Cesium.BillboardCollection());
 		const modeled = aircraft.filter((entry) => entry.model.file !== null);
 		// White, so the color tint below gives the exact color; the tip points up, the direction alignedAxis lines up with
@@ -467,10 +467,12 @@ fetchAircraft()
 				search.dispatchEvent(new Event('input'));
 			}
 		});
-	})
-	.catch((error) => {
+	},
+	(error) => {
+		// Only the fetch is handled here: a failure while setting up the scene must not claim the data is unavailable
 		// A spinner that never ends would claim the aircraft are still on their way
 		loading.hidden = true;
 		document.getElementById('feed-error').hidden = false;
 		throw error;
-	});
+	},
+);

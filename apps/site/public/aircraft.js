@@ -3,9 +3,16 @@ async function fetchAircraft() {
 	const columns = (data.manifest?.schema?.columns ?? []).map(({ name }) => name);
 	// Number(null) is 0, which would turn a missing velocity into a vertical climb
 	const optionalNumber = (value) => (value == null ? null : Number(value));
-	return (data.result?.data_array ?? [])
+	const positioned = (data.result?.data_array ?? [])
 		.map((values) => Object.fromEntries(values.map((value, index) => [columns[index], value])))
-		.filter((row) => row.longitude != null && row.latitude != null && row.geo_altitude != null)
+		.filter((row) => row.longitude != null && row.latitude != null && row.geo_altitude != null);
+	// A category without a model means the data pipeline delivered something unexpected, so the aircraft is left out instead of guessed at
+	const unknown = positioned.filter((row) => !findAircraftModel(row.category));
+	if (unknown.length) {
+		console.warn(`Skipped ${unknown.length} aircraft with unknown categories`, [...new Set(unknown.map((row) => row.category))]);
+	}
+	return positioned
+		.filter((row) => findAircraftModel(row.category))
 		.map((row) => {
 			const [longitude, latitude, altitude] = [row.longitude, row.latitude, row.geo_altitude].map(Number);
 			const rate = optionalNumber(row.vertical_rate);
@@ -59,9 +66,5 @@ const aircraftModels = [
 ];
 
 function findAircraftModel(category) {
-	const model = aircraftModels.find(({ categories }) => categories.includes(category ?? 'No information'));
-	if (!model) {
-		throw new Error(`Unknown aircraft category: ${category}`);
-	}
-	return model;
+	return aircraftModels.find(({ categories }) => categories.includes(category));
 }
