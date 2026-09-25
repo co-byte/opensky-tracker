@@ -10,9 +10,29 @@ const markerDisplayRange = new Cesium.DistanceDisplayCondition(modelRangeMeters,
 const modelLoadRangeMeters = modelRangeMeters * 1.1;
 // Shared, so an aircraft does not change color when it switches between a marker and a model
 const aircraftColor = Cesium.Color.fromCssColorString('#8a8a86');
+// The chevron spans 30 of the image's 38 units of height, the rest is a transparent margin that keeps its edges clear of the image's border
+const chevronWidthUnits = 32;
+const chevronHeightUnits = 38;
+const chevronPixelsPerUnit = minimumMarkerPixels / 30;
 // White, so the color tint gives the exact color; the tip points up, the direction alignedAxis lines up with
-const triangleImage =
-	"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 32'><path d='M8 1L15 31H1z' fill='white'/></svg>";
+// Drawn on a canvas and passed as a PNG URL so all markers share one texture; high resolution, because zooming in scales a marker up tenfold
+function createChevronImage() {
+	const texelsPerUnit = 4;
+	const canvas = document.createElement('canvas');
+	canvas.width = chevronWidthUnits * texelsPerUnit;
+	canvas.height = chevronHeightUnits * texelsPerUnit;
+	const context = canvas.getContext('2d');
+	context.scale(texelsPerUnit, texelsPerUnit);
+	context.fillStyle = 'white';
+	context.beginPath();
+	context.moveTo(16, 4);
+	context.lineTo(28, 34);
+	context.lineTo(16, 26);
+	context.lineTo(4, 34);
+	context.fill();
+	return canvas.toDataURL();
+}
+const chevronImage = createChevronImage();
 
 function focalLengthPixels(viewer) {
 	return viewer.canvas.clientHeight / (2 * Math.tan(viewer.camera.frustum.fovy / 2));
@@ -40,17 +60,15 @@ export function createDisplay({ viewer, aircraft }) {
 
 	const isVisible = (entry) => !visible || visible.has(entry);
 
-	function markerScaleByDistance(entry) {
-		const markerLengthMeters = (entry.model.drawLengthMeters * 2) / 3;
-		const alwaysMarker = entry.model.file === null || modelFailures.has(entry);
-		const firstShownDistance = alwaysMarker ? inspectRange(viewer, entry) : modelRangeMeters;
-		const minimumSizeDistance = (markerLengthMeters * focalLengthPixels(viewer)) / minimumMarkerPixels;
-		const firstShownScale = minimumSizeDistance / firstShownDistance;
-		if (firstShownScale <= 1) {
-			return undefined;
+	// Cesium keeps a billboard the same size on screen at any distance and only interpolates its scale between two distances,
+	// so the scale is set every frame to what perspective gives, like the models: a marker is 2/3 of its model, never below the minimum
+	function updateMarkerScales() {
+		const focalLength = focalLengthPixels(viewer);
+		for (const entry of aircraft) {
+			const distance = Cesium.Cartesian3.distance(camera.positionWC, entry.position);
+			const markerLengthPixels = ((entry.model.drawLengthMeters * 2) / 3) * (focalLength / distance);
+			markerOf.get(entry).scale = Math.max(1, markerLengthPixels / minimumMarkerPixels);
 		}
-		// Fitted against Cesium's curve: stays within 0.6 to 1.7 times 2/3 of the model (at least the minimum) and never grows while zooming out
-		return new Cesium.NearFarScalar(firstShownDistance, firstShownScale, Math.max(0.6 * minimumSizeDistance, 1.5 * firstShownDistance), 1);
 	}
 
 	function showModel(entry) {
@@ -79,7 +97,6 @@ export function createDisplay({ viewer, aircraft }) {
 				modelFailures.add(entry);
 				const marker = markerOf.get(entry);
 				marker.distanceDisplayCondition = undefined;
-				marker.scaleByDistance = markerScaleByDistance(entry);
 				scene.requestRender();
 				return null;
 			},
@@ -108,17 +125,17 @@ export function createDisplay({ viewer, aircraft }) {
 		const marker = markers.add({
 			id: entry,
 			position: entry.position,
-			image: triangleImage,
-			// The triangle spans 30 of the image's 32 units
-			height: (minimumMarkerPixels * 32) / 30,
-			width: (minimumMarkerPixels * 32) / 30 / 2.2,
+			image: chevronImage,
+			height: chevronHeightUnits * chevronPixelsPerUnit,
+			width: chevronWidthUnits * chevronPixelsPerUnit,
 			alignedAxis: direction,
-			scaleByDistance: markerScaleByDistance(entry),
 			distanceDisplayCondition: entry.model.file === null ? undefined : markerDisplayRange,
 			color: aircraftColor,
 		});
 		markerOf.set(entry, marker);
 	});
+
+	scene.preRender.addEventListener(updateMarkerScales);
 
 	// Nothing requests a frame when the image finishes loading, so the markers would stay invisible until the camera moves
 	const ready = new Promise((resolve) => {
