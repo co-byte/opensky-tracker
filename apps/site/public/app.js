@@ -22,6 +22,7 @@ fetchAircraft().then(
 		});
 		setupSearch({
 			aircraft,
+			camera: viewer.camera,
 			onFilter: (matched) => {
 				display.show(matched);
 				if (selection.current() && !matched.has(selection.current())) {
