@@ -1,5 +1,13 @@
 /* Same color as the globe's base color, so nothing flashes white while tiles load */
 :root {
+	--ink: #ededed;
+	--line: rgba(237, 237, 237, 0.2);
+	--muted: rgba(237, 237, 237, 0.4);
+	--dim: rgba(237, 237, 237, 0.6);
+	--accent: #c97c3d;
+	--raised: #262628;
+	--panel: rgba(24, 24, 24, 0.9);
+	--font: 'Space Grotesk', system-ui, sans-serif;
 	color-scheme: dark;
 	background: #181818;
 }
@@ -26,7 +34,7 @@ body {
 	padding: 0 20px;
 	background: linear-gradient(to bottom, rgba(24, 24, 24, 0.85), rgba(24, 24, 24, 0));
 	color: #f7f5f0;
-	font-family: 'Space Grotesk', system-ui, sans-serif;
+	font-family: var(--font);
 	pointer-events: none;
 }
 
@@ -66,7 +74,7 @@ body {
 	margin: 0;
 	width: 28px;
 	height: 28px;
-	border: 1px solid rgba(237, 237, 237, 0.2);
+	border: 1px solid var(--line);
 	border-radius: 50%;
 	padding: 0;
 	background: none;
@@ -74,13 +82,13 @@ body {
 }
 
 #controls button:hover {
-	border-color: rgba(237, 237, 237, 0.4);
-	background-color: #262628;
+	border-color: var(--muted);
+	background-color: var(--raised);
 }
 
 #controls button:focus-visible {
 	outline: none;
-	border-color: #c97c3d;
+	border-color: var(--accent);
 }
 
 #compass svg {
@@ -110,7 +118,7 @@ body {
 
 .cesium-viewer-bottom {
 	padding: 0 12px 10px;
-	font-family: 'Space Grotesk', system-ui, sans-serif;
+	font-family: var(--font);
 }
 
 .cesium-viewer .cesium-widget-credits {
@@ -119,13 +127,13 @@ body {
 }
 
 .cesium-viewer .cesium-credit-expand-link {
-	color: rgba(237, 237, 237, 0.4);
+	color: var(--muted);
 	text-decoration: none;
 }
 
 .cesium-viewer .cesium-credit-expand-link:hover,
 .cesium-viewer .cesium-credit-expand-link:focus-visible {
-	color: #ededed;
+	color: var(--ink);
 }
 
 .cesium-viewer .cesium-credit-lightbox-overlay {
@@ -133,26 +141,26 @@ body {
 }
 
 .cesium-viewer .cesium-credit-lightbox {
-	font-family: 'Space Grotesk', system-ui, sans-serif;
-	border: 1px solid rgba(237, 237, 237, 0.2);
+	font-family: var(--font);
+	border: 1px solid var(--line);
 	border-radius: 0;
-	background-color: rgba(24, 24, 24, 0.9);
-	color: rgba(237, 237, 237, 0.6);
+	background-color: var(--panel);
+	color: var(--dim);
 	font-size: 13px;
 	line-height: 1.6;
 }
 
 .cesium-viewer .cesium-credit-lightbox-title {
-	color: #ededed;
+	color: var(--ink);
 }
 
 .cesium-viewer .cesium-credit-lightbox a {
-	color: #ededed;
-	text-decoration-color: rgba(237, 237, 237, 0.4);
+	color: var(--ink);
+	text-decoration-color: var(--muted);
 }
 
 .cesium-viewer .cesium-credit-lightbox a:hover {
-	text-decoration-color: #c97c3d;
+	text-decoration-color: var(--accent);
 }
 
 .cesium-viewer .cesium-credit-lightbox-close {
@@ -168,11 +176,11 @@ body {
 }
 
 .cesium-viewer .cesium-credit-lightbox-close:hover {
-	background-color: #262628;
+	background-color: var(--raised);
 }
 
 .cesium-viewer .cesium-credit-lightbox-close:focus-visible {
-	outline: 1px solid #c97c3d;
+	outline: 1px solid var(--accent);
 }
 
 /* The box and details follow the selected aircraft; clicks pass through so the aircraft can still be picked or deselected */
@@ -189,7 +197,7 @@ body {
 	margin-left: 6px;
 	width: 14px;
 	height: 14px;
-	border: 2px solid rgba(237, 237, 237, 0.2);
+	border: 2px solid var(--line);
 	border-top-color: rgba(237, 237, 237, 0.8);
 	border-radius: 50%;
 	animation: spin 0.8s linear infinite;
@@ -210,25 +218,25 @@ body {
 	flex: 0 1 240px;
 	min-width: 0;
 	height: 32px;
-	border: 1px solid rgba(237, 237, 237, 0.2);
+	border: 1px solid var(--line);
 	border-radius: 0;
 	padding: 0 10px;
-	background: rgba(24, 24, 24, 0.9);
-	color: #ededed;
-	font: 13px 'Space Grotesk', system-ui, sans-serif;
+	background: var(--panel);
+	color: var(--ink);
+	font: 13px var(--font);
 }
 
 #search::placeholder {
-	color: rgba(237, 237, 237, 0.4);
+	color: var(--muted);
 }
 
 #search:focus {
 	outline: none;
-	border-color: #c97c3d;
+	border-color: var(--accent);
 }
 
 #search-count {
-	color: rgba(237, 237, 237, 0.4);
+	color: var(--muted);
 	font-size: 12px;
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
@@ -248,22 +256,18 @@ body {
 
 #selection-box {
 	box-sizing: border-box;
-	border: 1px solid #c97c3d;
+	border: 1px solid var(--accent);
 	box-shadow: 0 0 8px rgba(201, 124, 61, 0.5);
 }
 
 #details {
 	box-sizing: border-box;
 	width: 260px;
-	border: 1px solid rgba(237, 237, 237, 0.2);
-	border-left: 2px solid #c97c3d;
-	background: rgba(24, 24, 24, 0.9);
-	color: #ededed;
+	border: 1px solid var(--line);
+	border-left: 2px solid var(--accent);
+	background: var(--panel);
+	color: var(--ink);
 	font: 12px/1.6 ui-monospace, monospace;
-}
-
-#details[hidden] {
-	display: none;
 }
 
 #groups > *,
@@ -273,12 +277,12 @@ body {
 
 #groups > * + *,
 #summary {
-	border-top: 1px solid rgba(237, 237, 237, 0.2);
+	border-top: 1px solid var(--line);
 }
 
 /* Arrives last, so it cannot shift the data above it */
 #summary {
-	color: rgba(237, 237, 237, 0.6);
+	color: var(--dim);
 	font-size: 11px;
 }
 
@@ -287,7 +291,7 @@ body {
 	width: 12px;
 	height: 12px;
 	margin: 3px 6px 0 0;
-	fill: rgba(237, 237, 237, 0.6);
+	fill: var(--dim);
 }
 
 #details h2 {
@@ -299,7 +303,7 @@ body {
 
 #details p {
 	margin: 0;
-	color: rgba(237, 237, 237, 0.4);
+	color: var(--muted);
 }
 
 #details dl {
@@ -310,7 +314,7 @@ body {
 }
 
 #details dt {
-	color: rgba(237, 237, 237, 0.4);
+	color: var(--muted);
 	font-size: 10px;
 	letter-spacing: 0.12em;
 	text-transform: uppercase;
@@ -329,6 +333,6 @@ body {
 
 #details dd::after {
 	content: " " attr(data-unit);
-	color: rgba(237, 237, 237, 0.4);
+	color: var(--muted);
 	font-size: 11px;
 }
