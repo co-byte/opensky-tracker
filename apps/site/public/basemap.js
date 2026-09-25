@@ -3,10 +3,17 @@ async function loadBasemapStyle() {
 	const layer = (id) => style.layers.find((entry) => entry.id === id);
 	const setPaint = (id, values) => Object.assign((layer(id).paint ??= {}), values);
 	const setLayout = (id, values) => Object.assign((layer(id).layout ??= {}), values);
-	const addLayer = (definition, beforeId) => style.layers.splice(style.layers.findIndex(({ id }) => id === beforeId), 0, definition);
+	const addLayer = (definition, beforeId) =>
+		style.layers.splice(
+			style.layers.findIndex(({ id }) => id === beforeId),
+			0,
+			definition,
+		);
 
 	// Road labels compete with city names, which matter more when tracking flights
-	['highway_name_other', 'highway_name_motorway', 'road_oneway', 'road_oneway_opposite'].forEach((id) => setLayout(id, { visibility: 'none' }));
+	['highway_name_other', 'highway_name_motorway', 'road_oneway', 'road_oneway_opposite'].forEach((id) =>
+		setLayout(id, { visibility: 'none' }),
+	);
 
 	// The layer references a pattern that is missing from the style's sprite, so it never draws and MapLibre logs a warning on every load
 	setLayout('landcover_wood', { visibility: 'none' });
@@ -59,7 +66,15 @@ async function loadBasemapStyle() {
 		encoding: 'terrarium',
 	};
 	// Inserted below the waterway, road and label layers so shading never covers them
-	addLayer({ id: 'hillshade', type: 'hillshade', source: 'hillshade', paint: { 'hillshade-exaggeration': 0.4, 'hillshade-highlight-color': '#3d4b5c' } }, 'waterway');
+	addLayer(
+		{
+			id: 'hillshade',
+			type: 'hillshade',
+			source: 'hillshade',
+			paint: { 'hillshade-exaggeration': 0.4, 'hillshade-highlight-color': '#3d4b5c' },
+		},
+		'waterway',
+	);
 
 	// Cesium shows a tile at about 512 device pixels, so on a high-DPI screen the style's CSS pixel sizes would come out that many times smaller
 	const scale = window.devicePixelRatio;

@@ -65,7 +65,8 @@ body {
 	height: 102px;
 	padding: 20px 6px;
 	transform: translateY(-50%);
-	background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 102'><path d='M40 0C40 8 35 14 26 14H20C8 14 0 22 0 34V68C0 80 8 88 20 88H26C35 88 40 94 40 102Z' fill='%23181818' stroke='%23ededed' stroke-opacity='.2'/></svg>") no-repeat;
+	background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 102'><path d='M40 0C40 8 35 14 26 14H20C8 14 0 22 0 34V68C0 80 8 88 20 88H26C35 88 40 94 40 102Z' fill='%23181818' stroke='%23ededed' stroke-opacity='.2'/></svg>")
+		no-repeat;
 	filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5));
 }
 
@@ -102,9 +103,13 @@ body {
 }
 
 #controls .cesium-home-button {
-	background: transparent url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='6' fill='none' stroke='%23ededed' stroke-width='1.2'/><circle cx='16' cy='16' r='1.5' fill='%23ededed'/></svg>") center / 100% no-repeat;
+	background: transparent
+		url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='6' fill='none' stroke='%23ededed' stroke-width='1.2'/><circle cx='16' cy='16' r='1.5' fill='%23ededed'/></svg>")
+		center / 100% no-repeat;
 	box-shadow: inset 0 1px 0 rgba(237, 237, 237, 0.08);
-	transition: border-color 0.2s, background-color 0.2s;
+	transition:
+		border-color 0.2s,
+		background-color 0.2s;
 }
 
 .cesium-home-button .cesium-svgPath-svg {
@@ -267,7 +272,9 @@ body {
 	border-left: 2px solid var(--accent);
 	background: var(--panel);
 	color: var(--ink);
-	font: 12px/1.6 ui-monospace, monospace;
+	font:
+		12px/1.6 ui-monospace,
+		monospace;
 }
 
 #groups > *,
@@ -332,7 +339,7 @@ body {
 }
 
 #details dd::after {
-	content: " " attr(data-unit);
+	content: ' ' attr(data-unit);
 	color: var(--muted);
 	font-size: 11px;
 }
