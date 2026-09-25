@@ -27,11 +27,11 @@ viewer.creditDisplay.addStaticCredit(
 	new Cesium.Credit('Terrain: <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank">Mapzen, AWS Terrain Tiles</a>'),
 );
 Promise.all([import('https://cdn.jsdelivr.net/npm/maplibre-gl@6.10.0/dist/maplibre-gl.mjs'), loadBasemapStyle()]).then(([maplibregl, style]) => {
-	viewer.imageryLayers.addImageryProvider(new MapLibreImageryProvider(maplibregl, style, 3));
+	viewer.imageryLayers.addImageryProvider(new MapLibreImageryProvider(maplibregl, style, 3, () => scene.requestRender()));
 });
 // The default of 2 picks coarser imagery levels, which then show up magnified and blurry
 scene.globe.maximumScreenSpaceError = 1;
-scene.globe.baseColor = Cesium.Color.fromCssColorString('#181818');
+scene.globe.baseColor = Cesium.Color.fromCssColorString(backgroundColor);
 // Performance: the scene is static most of the time, so frames are only drawn when the camera moves or a tile loads; changes made from code need scene.requestRender()
 scene.requestRenderMode = true;
 scene.globe.showGroundAtmosphere = false;
@@ -39,7 +39,7 @@ scene.skyAtmosphere.show = false;
 scene.skyBox.show = false;
 scene.sun.show = false;
 scene.moon.show = false;
-scene.backgroundColor = Cesium.Color.fromCssColorString('#181818');
+scene.backgroundColor = Cesium.Color.fromCssColorString(backgroundColor);
 
 // Right-drag zooms by default; here it tilts and rotates like the map's right-drag did
 Object.assign(scene.screenSpaceCameraController, {
@@ -79,6 +79,8 @@ const modelFailures = new Set();
 const markerOf = new Map();
 
 const minimumMarkerPixels = 5;
+// Leaves room around the aircraft for its marker and details
+const inspectLengthPixels = 150;
 
 function focalLengthPixels() {
 	return viewer.canvas.clientHeight / (2 * Math.tan(camera.frustum.fovy / 2));
@@ -159,16 +161,13 @@ function hideModel(aircraft) {
 	models.delete(aircraft);
 }
 
-// Leaves room around the aircraft for its marker and details
-const inspectLengthPixels = 150;
-
 let selected = null;
 
 // Points straight down from the selected aircraft, showing what it is flying over
 const groundLine = scene.primitives.add(new Cesium.PolylineCollection()).add({
 	show: false,
 	width: 2,
-	material: Cesium.Material.fromType('Color', { color: Cesium.Color.fromCssColorString('#c97c3d') }),
+	material: Cesium.Material.fromType('Color', { color: Cesium.Color.fromCssColorString(accentColor) }),
 });
 
 const selectionBox = document.getElementById('selection-box');
@@ -182,7 +181,7 @@ const detailsGapPixels = 12;
 const header = document.getElementById('header');
 
 function showDetails(aircraft) {
-	const value = (number, scale = 1) => (number == null ? null : Math.round(number * scale).toLocaleString('en-US'));
+	const value = (number, scale = 1) => (number == null ? null : formatNumber(Math.round(number * scale)));
 	const rate = aircraft.verticalRate == null ? null : Math.round(aircraft.verticalRate);
 	const arrow = rate > 0 ? '▲ ' : rate < 0 ? '▼ ' : '';
 	// The aircraft itself first, then what it is doing right now
@@ -214,13 +213,8 @@ function showDetails(aircraft) {
 	summary.hidden = true;
 	summary.replaceChildren();
 	// Shown once it arrives, unless the aircraft was deselected meanwhile or has no summary
-	fetch(`/api/aircraft-summary?icao24=${encodeURIComponent(aircraft.icao24)}`)
-		.then(async (response) => {
-			if (!response.ok) {
-				throw new Error(`Aircraft summary request failed: ${response.status}`);
-			}
-			return (await response.json()).summary;
-		})
+	fetchJson(`/api/aircraft-summary?icao24=${encodeURIComponent(aircraft.icao24)}`, 'Aircraft summary')
+		.then(({ summary }) => summary)
 		.catch((error) => {
 			console.error(error);
 			return 'Summary unavailable';
@@ -272,9 +266,10 @@ scene.postRender.addEventListener(() => {
 	selectionBox.style.width = `${box.width}px`;
 	selectionBox.style.height = `${box.height}px`;
 	// Beside the box, on whichever side has room
-	const fitsRight = box.x + box.width + detailsGapPixels + details.offsetWidth <= innerWidth - detailsGapPixels;
-	const x = fitsRight ? box.x + box.width + detailsGapPixels : box.x - detailsGapPixels - details.offsetWidth;
-	const y = Math.min(Math.max(box.y, header.offsetHeight), innerHeight - detailsGapPixels - details.offsetHeight);
+	const { offsetWidth, offsetHeight } = details;
+	const fitsRight = box.x + box.width + detailsGapPixels + offsetWidth <= innerWidth - detailsGapPixels;
+	const x = fitsRight ? box.x + box.width + detailsGapPixels : box.x - detailsGapPixels - offsetWidth;
+	const y = Math.min(Math.max(box.y, header.offsetHeight), innerHeight - detailsGapPixels - offsetHeight);
 	details.style.transform = `translate(${x}px, ${y}px)`;
 });
 
@@ -423,18 +418,19 @@ fetchAircraft().then((aircraft) => {
 		searchQuery = search.value.trim().toLowerCase();
 		matches = aircraft.filter(matchesSearch);
 		matchIndex = -1;
+		const matched = new Set(matches);
 		for (const entry of aircraft) {
-			markerOf.get(entry).show = matchesSearch(entry);
+			markerOf.get(entry).show = matched.has(entry);
 			models.get(entry)?.then((model) => {
 				if (model) {
-					model.show = matchesSearch(entry);
+					model.show = matched.has(entry);
 				}
 			});
 		}
 		if (selected && !matchesSearch(selected)) {
 			releaseAircraft();
 		}
-		searchCount.textContent = searchQuery ? `${matches.length.toLocaleString('en-US')} of ${aircraft.length.toLocaleString('en-US')}` : '';
+		searchCount.textContent = searchQuery ? `${formatNumber(matches.length)} of ${formatNumber(aircraft.length)}` : '';
 		scene.requestRender();
 	});
 	document.getElementById('search-form').addEventListener('submit', (event) => {
