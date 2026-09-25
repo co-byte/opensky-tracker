@@ -1,3 +1,5 @@
+import { backgroundColor, fetchJson } from './common.js';
+
 async function loadBasemapStyle() {
 	const style = await fetchJson('https://tiles.openfreemap.org/styles/dark', 'Basemap style');
 	const layer = (id) => style.layers.find((entry) => entry.id === id);
@@ -142,4 +144,12 @@ class MapLibreImageryProvider extends Cesium.UrlTemplateImageryProvider {
 			this._requestRender();
 		});
 	}
+}
+
+export function addBasemap(viewer) {
+	Promise.all([import('https://cdn.jsdelivr.net/npm/maplibre-gl@6.10.0/dist/maplibre-gl.mjs'), loadBasemapStyle()]).then(
+		([maplibregl, style]) => {
+			viewer.imageryLayers.addImageryProvider(new MapLibreImageryProvider(maplibregl, style, 3, () => viewer.scene.requestRender()));
+		},
+	);
 }

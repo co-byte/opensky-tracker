@@ -1,4 +1,6 @@
-async function fetchAircraft() {
+import { fetchJson } from './common.js';
+
+export async function fetchAircraft() {
 	const data = await fetchJson('/api/latest-flight-state', 'Latest flight state');
 	const columns = (data.manifest?.schema?.columns ?? []).map(({ name }) => name);
 	// Number(null) is 0, which would turn a missing velocity into a vertical climb
