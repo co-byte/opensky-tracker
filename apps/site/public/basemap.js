@@ -1,9 +1,5 @@
 async function loadBasemapStyle() {
-	const response = await fetch('https://tiles.openfreemap.org/styles/dark');
-	if (!response.ok) {
-		throw new Error(`Basemap style request failed: ${response.status}`);
-	}
-	const style = await response.json();
+	const style = await fetchJson('https://tiles.openfreemap.org/styles/dark', 'Basemap style');
 	const layer = (id) => style.layers.find((entry) => entry.id === id);
 	const setPaint = (id, values) => Object.assign((layer(id).paint ??= {}), values);
 	const setLayout = (id, values) => Object.assign((layer(id).layout ??= {}), values);
@@ -16,7 +12,7 @@ async function loadBasemapStyle() {
 	setLayout('landcover_wood', { visibility: 'none' });
 
 	// Lifts the stock dark palette a notch
-	setPaint('background', { 'background-color': '#181818' });
+	setPaint('background', { 'background-color': backgroundColor });
 	setPaint('water', { 'fill-color': '#262628' });
 
 	// Runways are near-black in the stock style, so they are invisible against the dark basemap
@@ -26,7 +22,7 @@ async function loadBasemapStyle() {
 	// The style starts these at zoom 11, but the tiles carry aeroway data from zoom 10
 	['aeroway-runway', 'aeroway-runway-casing'].forEach((id) => Object.assign(layer(id), { minzoom: 10, maxzoom: 24 }));
 
-	// The tiles have no runways below zoom 10; to keep major runways visible, they are drawn from OpenStreetMap data that Claude generated into runways.geojson
+	// The tiles have no runways below zoom 10; to keep major runways visible, they are drawn from runways.geojson, generated from OpenStreetMap data
 	style.sources['runways-low-zoom'] = { type: 'geojson', data: new URL('/runways.geojson', location.href).href };
 	addLayer(
 		{
@@ -91,7 +87,7 @@ async function loadBasemapStyle() {
 
 // Cesium only takes raster tiles, so each one is rendered offscreen by MapLibre from the vector style; the pixel ratio of 2 keeps them sharp
 class MapLibreImageryProvider extends Cesium.UrlTemplateImageryProvider {
-	constructor(maplibregl, style, poolSize) {
+	constructor(maplibregl, style, poolSize, requestRender) {
 		// The URL template is required by the parent class, but requestImage never uses it
 		super({
 			url: '/{z}/{x}/{y}',
@@ -102,6 +98,7 @@ class MapLibreImageryProvider extends Cesium.UrlTemplateImageryProvider {
 			credit:
 				'Basemap: <a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
 		});
+		this._requestRender = requestRender;
 		this._idleMaps = Array.from({ length: poolSize }, () => {
 			const container = document.createElement('div');
 			container.style.cssText = 'position: fixed; left: -10000px; width: 512px; height: 512px';
@@ -127,7 +124,7 @@ class MapLibreImageryProvider extends Cesium.UrlTemplateImageryProvider {
 		}).finally(() => {
 			this._idleMaps.push(map);
 			// A finished tile does not draw a frame by itself, and it is the next frame that retries the tiles that were told to wait
-			scene.requestRender();
+			this._requestRender();
 		});
 	}
 }
