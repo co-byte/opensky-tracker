@@ -53,7 +53,7 @@ const aircraftModels = [
 			'Cluster obstacle',
 			'Line obstacle',
 		],
-		drawLengthMeters: 720,
+		drawLengthMeters: 1080,
 	},
 	{ file: 'light', categories: ['Light'], drawLengthMeters: 2100 },
 	{ file: 'small', categories: ['Small'], drawLengthMeters: 3300 },
