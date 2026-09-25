@@ -1,7 +1,7 @@
-const backgroundColor = '#181818';
-const accentColor = '#c97c3d';
+export const backgroundColor = '#181818';
+export const accentColor = '#c97c3d';
 
-async function fetchJson(url, name) {
+export async function fetchJson(url, name) {
 	const response = await fetch(url);
 	if (!response.ok) {
 		throw new Error(`${name} request failed: ${response.status}`);
@@ -9,4 +9,4 @@ async function fetchJson(url, name) {
 	return response.json();
 }
 
-const formatNumber = (number) => number.toLocaleString('en-US');
+export const formatNumber = (number) => number.toLocaleString('en-US');
